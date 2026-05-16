@@ -1,0 +1,5 @@
+--cosa sto facendo
+fare dei controlli a db vuoto con tanti dati
+
+
+

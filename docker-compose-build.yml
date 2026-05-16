@@ -1,0 +1,15 @@
+services:
+  jana:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - JWT__JWTKey=CHANGE_ME_use_a_long_random_secret
+      - JWT__JWTIssuer=Jana
+      - JWT__JTWAudience=Jana
+      - JWT__JWTExpireTime=365
+    volumes:
+      - ./data:/app/db
+    restart: unless-stopped

@@ -1,0 +1,27 @@
+{
+  "name": "jana",
+  "private": true,
+  "version": "0.8.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "eslint": "^8.26.0",
+    "eslint-plugin-vue": "^9.6.0",
+    "prettier": "^2.8.8",
+    "vite": "^7.1.7",
+    "vite-plugin-externals": "^0.6.2",
+    "vite-plugin-pwa": "^1.1.0"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fortawesome/fontawesome-free": "^7.2.0",
+    "bootstrap": "^5.3.8",
+    "eslint-config-prettier": "^8.5.0",
+    "jsstore": "^4.9.0",
+    "vite-plugin-static-copy": "^3.1.3"
+  }
+}

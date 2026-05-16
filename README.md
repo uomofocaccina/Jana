@@ -28,13 +28,21 @@ Technologies Features
 Running with Docker
 --------
 
-**Docker Compose (recommended):**
+**Docker Compose — image from dockerhub (recommended):**
 
 Copy `docker-compose.yml`, set a strong `JWT__JWTKey`, then run:
 ```bash
 docker compose up -d
 ```
 The SQLite database is persisted in `./data` on the host, mapped to `/app/db` inside the container.
+
+**Docker Compose — build dai sorgenti:**
+
+To build the image directly from source (requires Docker with BuildKit):
+```bash
+docker compose -f docker-compose-build.yml up -d --build
+```
+The Dockerfile performs a multi-stage build: compiles the .NET 8 backend, builds the frontend with Node 22, then assembles a minimal runtime image. The first build takes a few minutes; subsequent builds are faster thanks to layer caching.
 
 **Docker CLI:**
 ```bash

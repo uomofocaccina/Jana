@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <title>Jana</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="stylesheet" href="/style/main.css" />
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+</head>
+<body>
+    <!-- Header -->
+    <header class="jana-header">
+        <span class="jana-logo">JANA <span class="jana-version">v0.8</span></span>
+        <div class="jana-toolbar">
+            <button id="showSearchIcon" class="jana-btn" title="Search"></button>
+            <button id="showDirIcon" class="jana-btn" title="Folders"></button>
+            <button id="resync" class="jana-btn" title="Sync"></button>
+            <button id="refresh" class="jana-btn" title="Refresh list"></button>
+            <button id="zappadb" class="jana-btn" title="Clear local DB"></button>
+        </div>
+        <div class="jana-user">
+            <span id="userData"></span>
+            <button id="changePassword" class="jana-btn" title="Change password"></button>
+            <button id="logout" class="jana-btn" title="Logout"></button>
+        </div>
+    </header>
+
+    <!-- Errors -->
+    <div id="errorsPanel"></div>
+
+    <!-- Main layout -->
+    <div class="container-fluid">
+        <div class="row flex-column flex-md-row" id="janaPrincipal">
+
+            <!-- Directory -->
+            <div class="col-12 col-md-4" id="directoryspace" style="display: block;">
+                <div class="jana-sidebar-header">
+                    Folders
+                    <span id="showHideEdit"></span>
+                    <span id="firstAdd"></span>
+                </div>
+                <div id="lista"></div>
+            </div>
+
+            <!-- Search -->
+            <div class="col-12 col-md-4" id="searchSpace" style="display: none;">
+                <div style="padding: 12px 8px 4px;">
+                    <input type="text" id="searchInput" placeholder="Search folder or note..." />
+                </div>
+                <div id="searchResults"></div>
+            </div>
+
+            <!-- Nota -->
+            <div class="col-12 col-md-8" id="notaspace">
+                <!-- Mobile: torna alla lista -->
+                <button id="mobileBack" type="button">
+                    <i class="fa-solid fa-chevron-left"></i> Folders
+                </button>
+
+                <!-- Header nota (zona grigia) -->
+                <div class="nota-header">
+                    <span id="notadirectory"></span>
+                    <input type="hidden" id="notaid">
+                    <input type="hidden" id="notadirid">
+                    <input type="text" id="notatitle" placeholder="Title">
+                </div>
+
+                <!-- Body nota (zona bianca) -->
+                <div class="nota-body">
+                    <textarea id="notatextOLD" placeholder="text" style="display: none;"></textarea>
+                    <div id="notatext" contenteditable="true"></div>
+                    <div class="nota-actions">
+                        <button id="notasave">Save</button>
+                        <button id="notadelete">Delete</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Log panel -->
+    <div id="logs"></div>
+
+    <!-- Login Modal -->
+    <div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="loginModalLabel">Jana — Login</h5>
+                </div>
+                <div class="modal-body">
+                    <div id="loginError" class="alert alert-danger" style="display: none;"></div>
+                    <form id="loginForm">
+                        <div class="mb-3">
+                            <label for="usernameInput" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="usernameInput" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="passwordInput" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="passwordInput" required>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-primary" id="loginBtn">Login</button>
+                            <button type="button" class="btn btn-secondary" id="guestBtn">Guest mode (local only)</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="changePasswordModalLabel">Change password</h5>
+                </div>
+                <div class="modal-body">
+                    <div id="changePasswordError" class="alert alert-danger" style="display: none;"></div>
+                    <form id="changePasswordForm">
+                        <div class="mb-3">
+                            <label for="changePasswordOldPasswordInput" class="form-label">Old password</label>
+                            <input type="password" class="form-control" id="changePasswordOldPasswordInput" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="changePasswordNewPasswordInput" class="form-label">New password</label>
+                            <input type="password" class="form-control" id="changePasswordNewPasswordInput" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="changePasswordNewPassword2Input" class="form-label">New password (confirm)</label>
+                            <input type="password" class="form-control" id="changePasswordNewPassword2Input" required>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="button" class="btn btn-primary" id="changePasswordBtn">Change</button>
+                            <button type="button" class="btn btn-secondary" id="changePasswordCancelBtn">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
