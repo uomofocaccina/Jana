@@ -18,17 +18,10 @@ Features
 - Offline access.
 - Synchronization between devices via a private backend.
 
-Technologies Features
---------
-- Frontend: Plain Javascript, Vite, JSStore for local storage.
-- Backend: .NET for API and data synchronization.
-- Service Worker: Workbox for offline capabilities.
-
-
 Running with Docker
 --------
 
-**Docker Compose — image from dockerhub (recommended):**
+**Docker Compose**
 
 Copy `docker-compose.yml`, set a strong `JWT__JWTKey`, then run:
 ```bash
@@ -36,13 +29,12 @@ docker compose up -d
 ```
 The SQLite database is persisted in `./data` on the host, mapped to `/app/db` inside the container.
 
-**Docker Compose — build dai sorgenti:**
+**Docker Compose — build from source:**
 
-To build the image directly from source (requires Docker with BuildKit):
+To build the image directly from source:
 ```bash
 docker compose -f docker-compose-build.yml up -d --build
 ```
-The Dockerfile performs a multi-stage build: compiles the .NET 8 backend, builds the frontend with Node 22, then assembles a minimal runtime image. The first build takes a few minutes; subsequent builds are faster thanks to layer caching.
 
 **Docker CLI:**
 ```bash
@@ -66,6 +58,12 @@ TODO / Roadmap
 - [ ] Icon-based context menu for actions: new note, new folder, edit, delete
 - [ ] Favorites: mark notes/folders as favorites for quick access
 - [ ] WebSocket support for real-time note updates across devices
+
+Technologies Features
+--------
+- Frontend: Plain Javascript, Vite, JSStore for local storage.
+- Backend: .NET for API and data synchronization.
+- Service Worker: Workbox for offline capabilities.
 
 Getting Started For Development
 --------
