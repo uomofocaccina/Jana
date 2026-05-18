@@ -179,4 +179,38 @@ export const api = {
         }
         throw new Error("Error changing parent note");
     },
+
+    async adminGetUsers(token) {
+        const data = await fetchJson(`${API_BASE_URL}/admin/users`, {
+            headers: getHeaders(token),
+        });
+        return data;
+    },
+
+    async adminAddUser(token, userObj) {
+        const data = await fetchJson(`${API_BASE_URL}/admin/users`, {
+            method: "POST",
+            headers: getHeaders(token),
+            body: JSON.stringify(userObj),
+        });
+        return data;
+    },
+
+    async adminEditUser(token, userObj) {
+        const data = await fetchJson(`${API_BASE_URL}/admin/users`, {
+            method: "PUT",
+            headers: getHeaders(token),
+            body: JSON.stringify(userObj),
+        });
+        return data;
+    },
+
+    async adminChangeUserPassword(token, id, password) {
+        const data = await fetchJson(`${API_BASE_URL}/admin/users/password`, {
+            method: "PUT",
+            headers: getHeaders(token),
+            body: JSON.stringify({ id, password }),
+        });
+        return data;
+    },
 };

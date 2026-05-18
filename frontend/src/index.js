@@ -754,6 +754,13 @@ function registerEvents() {
         await zappaDb();
     };
 
+    // Admin settings
+    let adminSettings = document.getElementById("adminSettings");
+    adminSettings.innerHTML = '<i class="fa-solid fa-gear"></i>';
+    adminSettings.onclick = function () {
+        showAdminPanelModal();
+    };
+
     // Logout
     let logout = document.getElementById("logout");
     logout.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i>';
@@ -1268,6 +1275,7 @@ navigator.serviceWorker.addEventListener("message", async (event) => {
         } else {
             changePassword.style.display = "inline";
         }
+        document.getElementById("adminSettings").style.display = userDataFromSW.isAdmin ? "inline" : "none";
     }
     if (event.data.type === "db_zappa_request_response") {
         if (event.data.success) {
@@ -1335,6 +1343,39 @@ navigator.serviceWorker.addEventListener("message", async (event) => {
             writeLog("Password changed!");
         } else {
             showChangePasswordError(event.data.result.message);
+        }
+    }
+    if (event.data.type === "adminGetUsers_response") {
+        if (event.data.result.success) {
+            renderAdminUsersTable(event.data.result.data);
+        } else {
+            showAdminPanelError(event.data.result.message || "Error loading users.");
+        }
+    }
+    if (event.data.type === "adminAddUser_response") {
+        if (event.data.result.success) {
+            hideAdminUserFormModal();
+            showAdminPanelSuccess("User added.");
+            await messageToServiceWorker("adminGetUsers_request");
+        } else {
+            showAdminUserFormError(event.data.result.message || "Error creating user.");
+        }
+    }
+    if (event.data.type === "adminEditUser_response") {
+        if (event.data.result.success) {
+            hideAdminUserFormModal();
+            showAdminPanelSuccess("User updated.");
+            await messageToServiceWorker("adminGetUsers_request");
+        } else {
+            showAdminUserFormError(event.data.result.message || "Error updating user.");
+        }
+    }
+    if (event.data.type === "adminChangeUserPassword_response") {
+        if (event.data.result.success) {
+            hideAdminUserPasswordModal();
+            showAdminPanelSuccess("Password updated.");
+        } else {
+            showAdminUserPasswordError(event.data.result.message || "Error changing password.");
         }
     }
 });
@@ -1459,4 +1500,179 @@ function showChangePasswordError(message) {
     const errorDiv = document.getElementById("changePasswordError");
     errorDiv.textContent = message;
     errorDiv.style.display = "block";
+}
+
+// ─── Admin Panel ───────────────────────────────────────────────────────────────
+
+let adminPanelModalInstance;
+let adminUserFormModalInstance;
+let adminUserPasswordModalInstance;
+
+function initAdminPanelModal() {
+    // eslint-disable-next-line no-undef
+    adminPanelModalInstance = new bootstrap.Modal(document.getElementById("adminPanelModal"));
+}
+
+async function showAdminPanelModal() {
+    if (!adminPanelModalInstance) initAdminPanelModal();
+    if (!adminPanelModalInstance) return;
+
+    document.getElementById("adminPanelError").style.display = "none";
+    document.getElementById("adminPanelSuccess").style.display = "none";
+    document.getElementById("adminUsersTableBody").innerHTML = "";
+
+    document.getElementById("adminAddUserBtn").onclick = () => openAdminUserForm(null);
+
+    await messageToServiceWorker("adminGetUsers_request");
+    adminPanelModalInstance.show();
+}
+
+function showAdminPanelError(message) {
+    const el = document.getElementById("adminPanelError");
+    el.textContent = message;
+    el.style.display = "block";
+    document.getElementById("adminPanelSuccess").style.display = "none";
+}
+
+function showAdminPanelSuccess(message) {
+    const el = document.getElementById("adminPanelSuccess");
+    el.textContent = message;
+    el.style.display = "block";
+    document.getElementById("adminPanelError").style.display = "none";
+}
+
+function renderAdminUsersTable(users) {
+    const tbody = document.getElementById("adminUsersTableBody");
+    tbody.innerHTML = "";
+    users.forEach((u) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td class="d-none d-md-table-cell">${u.id}</td>
+            <td>${escapeHtml(u.username)}</td>
+            <td>${escapeHtml(u.name)}</td>
+            <td>${u.active ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-secondary">No</span>'}</td>
+            <td>${u.admin ? '<span class="badge bg-warning text-dark">Yes</span>' : '<span class="badge bg-secondary">No</span>'}</td>
+            <td class="d-none d-md-table-cell">${new Date(u.created).toLocaleDateString("it-IT")}</td>
+            <td>
+                <div class="d-flex flex-column align-items-center gap-1">
+                    <button class="btn btn-sm btn-link text-secondary p-0 admin-edit-btn" data-id="${u.id}" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                    <button class="btn btn-sm btn-link text-secondary p-0 admin-pwd-btn" data-id="${u.id}" title="Change password"><i class="fa-solid fa-key"></i></button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    tbody.querySelectorAll(".admin-edit-btn").forEach((btn) => {
+        const userId = parseInt(btn.dataset.id);
+        btn.onclick = () => openAdminUserForm(users.find((u) => u.id === userId));
+    });
+    tbody.querySelectorAll(".admin-pwd-btn").forEach((btn) => {
+        const userId = parseInt(btn.dataset.id);
+        btn.onclick = () => openAdminUserPasswordModal(userId);
+    });
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function openAdminUserForm(user) {
+    if (!adminUserFormModalInstance) {
+        // eslint-disable-next-line no-undef
+        adminUserFormModalInstance = new bootstrap.Modal(document.getElementById("adminUserFormModal"));
+    }
+
+    const isNew = !user;
+    document.getElementById("adminUserFormModalLabel").textContent = isNew ? "New user" : "Edit user";
+    document.getElementById("adminUserFormId").value = isNew ? "" : user.id;
+    document.getElementById("adminUserFormUsername").value = isNew ? "" : user.username;
+    document.getElementById("adminUserFormName").value = isNew ? "" : user.name;
+    document.getElementById("adminUserFormPassword").value = "";
+    document.getElementById("adminUserFormPasswordGroup").style.display = isNew ? "block" : "none";
+    document.getElementById("adminUserFormActive").checked = isNew ? true : !!user.active;
+    document.getElementById("adminUserFormAdmin").checked = isNew ? false : !!user.admin;
+    document.getElementById("adminUserFormError").style.display = "none";
+
+    document.getElementById("adminUserFormSaveBtn").onclick = async () => {
+        const username = document.getElementById("adminUserFormUsername").value.trim();
+        const name = document.getElementById("adminUserFormName").value.trim();
+        const password = document.getElementById("adminUserFormPassword").value;
+        const active = document.getElementById("adminUserFormActive").checked ? 1 : 0;
+        const admin = document.getElementById("adminUserFormAdmin").checked ? 1 : 0;
+
+        if (!username || !name) {
+            showAdminUserFormError("Username and name are required.");
+            return;
+        }
+        if (/\s/.test(username)) {
+            showAdminUserFormError("Username must not contain spaces.");
+            return;
+        }
+        if (isNew && password.length < 6) {
+            showAdminUserFormError("Password must be at least 6 characters.");
+            return;
+        }
+
+        if (isNew) {
+            await messageToServiceWorker("adminAddUser_request", { username, name, password, active, admin });
+        } else {
+            await messageToServiceWorker("adminEditUser_request", { id: parseInt(document.getElementById("adminUserFormId").value), username, name, active, admin });
+        }
+    };
+
+    document.getElementById("adminUserFormCancelBtn").onclick = () => hideAdminUserFormModal();
+
+    adminUserFormModalInstance.show();
+}
+
+function hideAdminUserFormModal() {
+    if (adminUserFormModalInstance) adminUserFormModalInstance.hide();
+}
+
+function showAdminUserFormError(message) {
+    const el = document.getElementById("adminUserFormError");
+    el.textContent = message;
+    el.style.display = "block";
+}
+
+function openAdminUserPasswordModal(userId) {
+    if (!adminUserPasswordModalInstance) {
+        // eslint-disable-next-line no-undef
+        adminUserPasswordModalInstance = new bootstrap.Modal(document.getElementById("adminUserPasswordModal"));
+    }
+
+    document.getElementById("adminUserPasswordId").value = userId;
+    document.getElementById("adminUserPasswordInput").value = "";
+    document.getElementById("adminUserPassword2Input").value = "";
+    document.getElementById("adminUserPasswordError").style.display = "none";
+
+    document.getElementById("adminUserPasswordSaveBtn").onclick = async () => {
+        const password = document.getElementById("adminUserPasswordInput").value;
+        const password2 = document.getElementById("adminUserPassword2Input").value;
+        if (password !== password2) {
+            showAdminUserPasswordError("Passwords do not match.");
+            return;
+        }
+        if (password.length < 6) {
+            showAdminUserPasswordError("Password must be at least 6 characters.");
+            return;
+        }
+        const id = parseInt(document.getElementById("adminUserPasswordId").value);
+        await messageToServiceWorker("adminChangeUserPassword_request", { id, password });
+    };
+
+    document.getElementById("adminUserPasswordCancelBtn").onclick = () => hideAdminUserPasswordModal();
+
+    adminUserPasswordModalInstance.show();
+}
+
+function hideAdminUserPasswordModal() {
+    if (adminUserPasswordModalInstance) adminUserPasswordModalInstance.hide();
+}
+
+function showAdminUserPasswordError(message) {
+    const el = document.getElementById("adminUserPasswordError");
+    el.textContent = message;
+    el.style.display = "block";
 }

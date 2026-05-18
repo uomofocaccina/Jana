@@ -1,8 +1,10 @@
-Jana 0.8
+Jana 0.9
 Just Another Note Application.
 ===========================
 
 This is a simple note-taking application built with a frontend using plain Javascript and a backend using .NET. It also includes a service worker for offline capabilities.
+
+<p align="center"><img src="logo.png" alt="Jana logo" /></p>
 
 Why Jana?
 --------
@@ -54,7 +56,7 @@ Default credentials: `admin` / `admin` — **change the password after first log
 
 TODO / Roadmap
 --------
-- [ ] Admin section to manage users (create, disable, reset password)
+- [x] Admin section to manage users (create, disable, reset password)
 - [ ] Icon-based context menu for actions: new note, new folder, edit, delete
 - [ ] Favorites: mark notes/folders as favorites for quick access
 - [ ] WebSocket support for real-time note updates across devices

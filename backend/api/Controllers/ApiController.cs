@@ -1,6 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
 using JanaApi.Model;
 using JanaApi.Service;
+using JanaApi.Utilities;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace JanaApi.Controllers
 {
@@ -11,14 +13,11 @@ namespace JanaApi.Controllers
         private readonly ILogger<ApiController> _logger;
         private readonly INoteService _note;
         private readonly IFolderService _folder;
-        private readonly IUsersService _users;
-        private readonly int idUtenteFisso = 1;
 
-        public ApiController(ILogger<ApiController> logger, INoteService note, IUsersService users, IFolderService folder)
+        public ApiController(ILogger<ApiController> logger, INoteService note, IFolderService folder)
         {
             _logger = logger;
             _note = note;
-            _users = users;
             _folder = folder;
         }
 
@@ -33,9 +32,16 @@ namespace JanaApi.Controllers
             return Ok(result);
         }
 
+        //for debug purposes, creates 3 folders with 3 subfolders each and 10 notes in each subfolder for the given user id
         [HttpGet("createrandomnoteandfolder")]
-        public async Task<IActionResult> CreateRandomNoteAndFolder()
+        [Authorize]
+        public async Task<IActionResult> CreateRandomNoteAndFolder(int idUser)
         {
+            if (!JwtClaimsHelper.IsAdmin(User))
+            {
+                return Unauthorized();
+            }
+
             using var httpClient = new HttpClient();
             string loremApi = "https://baconipsum.com/api/?type=meat-and-filler&paras=2";
 
@@ -49,7 +55,7 @@ namespace JanaApi.Controllers
                 {
                     id = Guid.NewGuid().ToString(),
                     text = folderText,
-                    user_id = idUtenteFisso,
+                    user_id = idUser,
                     timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                 };
                 await _folder.AddFolderAsync(folder);
@@ -65,7 +71,7 @@ namespace JanaApi.Controllers
                         id = Guid.NewGuid().ToString(),
                         text = subFolderText,
                         parent = folder.id,
-                        user_id = idUtenteFisso,
+                        user_id = idUser,
                         timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                     };
                     await _folder.AddFolderAsync(subFolder);
@@ -82,7 +88,7 @@ namespace JanaApi.Controllers
                             title = $"{noteText.Substring(1, 15)} {f}-{j}",
                             text = noteText,
                             folder = subFolder.id,
-                            user_id = idUtenteFisso,
+                            user_id = idUser,
                             timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                         };
                         await _note.AddNoteAsync(note);
@@ -97,91 +103,5 @@ namespace JanaApi.Controllers
             };
             return Ok(result);
         }
-
-        //[HttpGet("notes/{timestamp}")]
-        //public async Task<IActionResult> GetNotes(long timestamp, [FromQuery] int limit = 20, [FromQuery] int offset = 0)
-        //{
-        //    ResultNote result = new ResultNote();
-        //    int idUtente = idUtenteFisso; // For testing purposes, using a fixed user ID
-
-        //    try
-        //    {
-        //        result.count = await _note.GetCountNotesAsync(idUtente, timestamp);
-        //        if (result.count != 0)
-        //        {
-        //            var resultNote = await _note.GetNotesAsync(idUtente, timestamp, limit, offset);
-        //            result.data = resultNote;
-        //        }
-
-        //        result.success = true;
-
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Error retrieving notes for user {UserId} at timestamp {Timestamp}", idUtente, timestamp);
-        //        result.success = false;
-        //        result.message = $"Error retrieving notes: {ex.StackTrace}";
-        //        return StatusCode(500, result);
-        //    }
-
-        //    return Ok(result);
-        //}
-
-        //[HttpPut("note")]
-        //public async Task<IActionResult> AddNote(NoteRequest noteRequest)
-        //{
-        //    Result result = new Result();
-        //    if (noteRequest == null)
-        //    {
-        //        result.success = false;
-        //        result.message = "Note cannot be null.";
-        //        return BadRequest(result);
-        //    }
-
-        //    Note note = new Note(noteRequest, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), DateTime.UtcNow, idUtenteFisso);
-
-        //    try
-        //    {
-        //        result = await _note.AddNoteAsync(note);
-
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Error add note for user {UserId}", note.user_id);
-        //        result.success = false;
-        //        result.message = $"Error add note: {ex.StackTrace}";
-        //        return StatusCode(500, result);
-        //    }
-
-        //    return Ok(result);
-        //}
-
-        //[HttpPost("note")]
-        //public async Task<IActionResult> UpdateNote(NoteRequest noteRequest)
-        //{
-        //    Result result = new Result();
-        //    if (noteRequest == null)
-        //    {
-        //        result.success = false;
-        //        result.message = "Note cannot be null.";
-        //        return BadRequest(result);
-        //    }
-
-        //    Note note = new Note(noteRequest, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), DateTime.UtcNow, idUtenteFisso);
-        //    try
-        //    {
-        //        result = await _note.UpdateNoteAsync(note);
-
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Error edit note for user {UserId}", note.user_id);
-        //        result.success = false;
-        //        result.message = $"Error edit note: {ex.StackTrace}";
-        //        return StatusCode(500, result);
-        //    }
-
-        //    return Ok(result);
-        //}
     }
 }

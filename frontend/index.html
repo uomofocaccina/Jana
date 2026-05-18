@@ -14,13 +14,14 @@
 <body>
     <!-- Header -->
     <header class="jana-header">
-        <span class="jana-logo">JANA <span class="jana-version">v0.8</span></span>
+        <span class="jana-logo">JANA <span class="jana-version">v0.9</span></span>
         <div class="jana-toolbar">
             <button id="showSearchIcon" class="jana-btn" title="Search"></button>
             <button id="showDirIcon" class="jana-btn" title="Folders"></button>
             <button id="resync" class="jana-btn" title="Sync"></button>
             <button id="refresh" class="jana-btn" title="Refresh list"></button>
             <button id="zappadb" class="jana-btn" title="Clear local DB"></button>
+            <button id="adminSettings" class="jana-btn" title="Admin settings" style="display:none;"></button>
         </div>
         <div class="jana-user">
             <span id="userData"></span>
@@ -141,6 +142,107 @@
                             <button type="button" class="btn btn-secondary" id="changePasswordCancelBtn">Cancel</button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Panel Modal -->
+    <div class="modal fade" id="adminPanelModal" tabindex="-1" aria-labelledby="adminPanelModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-fullscreen-md-down modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="adminPanelModalLabel"><i class="fa-solid fa-gear me-2"></i>Admin Panel — Users</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="adminPanelError" class="alert alert-danger" style="display: none;"></div>
+                    <div id="adminPanelSuccess" class="alert alert-success" style="display: none;"></div>
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-primary btn-sm" id="adminAddUserBtn"><i class="fa-solid fa-plus me-1"></i>Add user</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle" id="adminUsersTable">
+                            <thead>
+                                <tr>
+                                    <th class="d-none d-md-table-cell">ID</th>
+                                    <th>Username</th>
+                                    <th>Name</th>
+                                    <th>Active</th>
+                                    <th>Admin</th>
+                                    <th class="d-none d-md-table-cell">Created</th>
+                                    <th style="width:48px"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminUsersTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Add/Edit User Modal -->
+    <div class="modal fade" id="adminUserFormModal" tabindex="-1" aria-labelledby="adminUserFormModalLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-fullscreen-sm-down modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="adminUserFormModalLabel">User</h5>
+                </div>
+                <div class="modal-body">
+                    <div id="adminUserFormError" class="alert alert-danger" style="display: none;"></div>
+                    <input type="hidden" id="adminUserFormId">
+                    <div class="mb-3">
+                        <label for="adminUserFormUsername" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="adminUserFormUsername" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="adminUserFormName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="adminUserFormName" required>
+                    </div>
+                    <div class="mb-3" id="adminUserFormPasswordGroup">
+                        <label for="adminUserFormPassword" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="adminUserFormPassword">
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="adminUserFormActive">
+                        <label class="form-check-label" for="adminUserFormActive">Active</label>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="adminUserFormAdmin">
+                        <label class="form-check-label" for="adminUserFormAdmin">Admin</label>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-primary" id="adminUserFormSaveBtn">Save</button>
+                        <button type="button" class="btn btn-secondary" id="adminUserFormCancelBtn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Change User Password Modal -->
+    <div class="modal fade" id="adminUserPasswordModal" tabindex="-1" aria-labelledby="adminUserPasswordModalLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-fullscreen-sm-down modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="adminUserPasswordModalLabel">Change password</h5>
+                </div>
+                <div class="modal-body">
+                    <div id="adminUserPasswordError" class="alert alert-danger" style="display: none;"></div>
+                    <input type="hidden" id="adminUserPasswordId">
+                    <div class="mb-3">
+                        <label for="adminUserPasswordInput" class="form-label">New password</label>
+                        <input type="password" class="form-control" id="adminUserPasswordInput">
+                    </div>
+                    <div class="mb-3">
+                        <label for="adminUserPassword2Input" class="form-label">Confirm password</label>
+                        <input type="password" class="form-control" id="adminUserPassword2Input">
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-primary" id="adminUserPasswordSaveBtn">Save</button>
+                        <button type="button" class="btn btn-secondary" id="adminUserPasswordCancelBtn">Cancel</button>
+                    </div>
                 </div>
             </div>
         </div>

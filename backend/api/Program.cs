@@ -48,6 +48,12 @@ namespace JanaApi
                    };
                });
 
+            builder.Services.AddAuthorization(options =>
+            {
+                options.AddPolicy("AdminOnly", policy =>
+                    policy.RequireClaim("admin", "true"));
+            });
+
             builder.Services.AddSwaggerGen(c =>
             {
                 //c.SwaggerDoc("v2", new OpenApiInfo { Title = "DataSample API", Version = "v2" });
