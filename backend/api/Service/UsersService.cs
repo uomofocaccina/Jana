@@ -127,7 +127,7 @@ public class UsersService : IUsersService
     {
         try
         {
-            string sql = "SELECT * FROM Users";
+            string sql = "SELECT id, username, name, active, admin, created FROM Users";
             var result = await _dapperContext.GetDataAsync<UserMinimal>(sql);
             return result.ToList();
         }
@@ -143,16 +143,6 @@ public class UsersService : IUsersService
         ResultAdminAddUser result = new ResultAdminAddUser();
         try
         {
-            string sql = "select count(*) from Users where username = @username";
-            int count = await _dapperContext.GetSingleValueAsync<int>(sql, new { username = userRequest.username });
-
-            if (count > 0)
-            {
-                result.success = false;
-                result.message = "Username already exists.";
-                return result;
-            }
-
             if (string.IsNullOrEmpty(userRequest.password))
             {
                 result.success = false;
@@ -171,6 +161,16 @@ public class UsersService : IUsersService
             {
                 result.success = false;
                 result.message = "Username is required.";
+                return result;
+            }
+
+            string sql = "select count(*) from Users where username = @username";
+            int count = await _dapperContext.GetSingleValueAsync<int>(sql, new { username = userRequest.username });
+
+            if (count > 0)
+            {
+                result.success = false;
+                result.message = "Username already exists.";
                 return result;
             }
 
@@ -221,7 +221,7 @@ public class UsersService : IUsersService
             }
 
             sql = "update Users set username = @username, admin = @admin, active = @active, name = @name where id = @id;";
-            int userId = await _dapperContext.GetSingleValueAsync<int>(sql, new { username = userRequest.username, admin = userRequest.admin, active = userRequest.active, name = userRequest.name, id = userRequest.id });
+            await _dapperContext.ExecuteAsync(sql, new { username = userRequest.username, admin = userRequest.admin, active = userRequest.active, name = userRequest.name, id = userRequest.id });
             result.success = true;
             result.message = "User updated successfully.";
         }

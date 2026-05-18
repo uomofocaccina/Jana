@@ -102,7 +102,7 @@ namespace TestProject1
             Assert.IsNull(user);
 
             // Reset password for other tests
-            await _users.ChangePasswordAsync(0, "newpassword", "password");
+            await _users.ChangePasswordAsync(0, "newpassword", "admin");
         }
 
         [TestMethod]
