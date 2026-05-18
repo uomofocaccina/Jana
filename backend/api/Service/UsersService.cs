@@ -79,8 +79,7 @@ public class UsersService : IUsersService
                 return false;
             }
 
-            await ChangePasswordAsync(userId, newPassword);
-            return true;
+            return await ChangePasswordAsync(userId, newPassword);
         }
         catch (Exception ex)
         {

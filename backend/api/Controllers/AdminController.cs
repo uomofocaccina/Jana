@@ -35,6 +35,7 @@ public class AdminController : ControllerBase
             result.message = $"Error retrieving Users: {ex.Message}";
             return StatusCode(500, result);
         }
+
         return Ok(result);
     }
 
@@ -46,7 +47,6 @@ public class AdminController : ControllerBase
         {
             var data = await _users.AddUserAsync(userRequest);
             result = data;
-            result.success = true;
         }
         catch (Exception ex)
         {
@@ -55,6 +55,7 @@ public class AdminController : ControllerBase
             result.message = $"Error adding User: {ex.Message}";
             return StatusCode(500, result);
         }
+
         return Ok(result);
     }
 
@@ -66,7 +67,6 @@ public class AdminController : ControllerBase
         {
             var data = await _users.EditUserAsync(userRequest);
             result = data;
-            result.success = true;
         }
         catch (Exception ex)
         {
@@ -75,6 +75,7 @@ public class AdminController : ControllerBase
             result.message = $"Error editing User: {ex.Message}";
             return StatusCode(500, result);
         }
+
         return Ok(result);
     }
 
@@ -82,6 +83,13 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> ChangeUserPassword(ChangePasswordAdminRequest request)
     {
         Result result = new Result();
+        if (string.IsNullOrEmpty(request.password) || request.password.Length < 6)
+        {
+            result.success = false;
+            result.message = "Password must be at least 6 characters long.";
+            return BadRequest(result);
+        }
+
         try
         {
             result.success = await _users.ChangePasswordAsync(request.id, request.password);
@@ -93,6 +101,7 @@ public class AdminController : ControllerBase
             result.message = $"Error changing password: {ex.Message}";
             return StatusCode(500, result);
         }
+
         return Ok(result);
     }
 }
