@@ -1,8 +1,10 @@
-Jana 0.8
+Jana 0.9
 Just Another Note Application.
 ===========================
 
 This is a simple note-taking application built with a frontend using plain Javascript and a backend using .NET. It also includes a service worker for offline capabilities.
+
+![Jana logo](logo.png)
 
 Why Jana?
 --------
