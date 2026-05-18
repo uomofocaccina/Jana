@@ -10,7 +10,7 @@ public class UserMinimal
     public DateTime created { get; set; }
 }
 
-public class  User: UserMinimal
+public class User : UserMinimal
 {
     public string password { get; set; } = string.Empty;
 }

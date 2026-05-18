@@ -83,7 +83,7 @@ public class UsersService : IUsersService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error check and changing password for user {UserId}", userId);
+            _logger.LogError(ex, "Error checking and changing password for user {UserId}", userId);
             return false;
         }
     }
@@ -142,10 +142,10 @@ public class UsersService : IUsersService
         ResultAdminAddUser result = new ResultAdminAddUser();
         try
         {
-            if (string.IsNullOrEmpty(userRequest.password))
+            if (string.IsNullOrEmpty(userRequest.password) || userRequest.password.Length < 6)
             {
                 result.success = false;
-                result.message = "Password is required.";
+                result.message = "Password is required and must be at least 6 characters long.";
                 return result;
             }
 
@@ -174,8 +174,8 @@ public class UsersService : IUsersService
             }
 
             string hashedPassword = PasswordHelper.ComputeSha256Hash(userRequest.password);
-            sql = "INSERT INTO Users (username, password, admin, active, name) VALUES (@username, @password, @admin, 1, @name); SELECT last_insert_rowid() as int;";
-            int userId = await _dapperContext.GetSingleValueAsync<int>(sql, new { username = userRequest.username, password = hashedPassword, admin = userRequest.admin, name = userRequest.name });
+            sql = "INSERT INTO Users (username, password, admin, active, name) VALUES (@username, @password, @admin, @active, @name); SELECT last_insert_rowid() as int;";
+            int userId = await _dapperContext.GetSingleValueAsync<int>(sql, new { username = userRequest.username, password = hashedPassword, admin = userRequest.admin, active = userRequest.active, name = userRequest.name });
             result.success = true;
             result.message = "User added successfully.";
             result.id = userId;
@@ -195,16 +195,6 @@ public class UsersService : IUsersService
         Result result = new Result();
         try
         {
-            string sql = "select count(*) from Users where username = @username and id != @id";
-            int count = await _dapperContext.GetSingleValueAsync<int>(sql, new { username = userRequest.username, id = userRequest.id });
-
-            if (count > 0)
-            {
-                result.success = false;
-                result.message = "Username already exists.";
-                return result;
-            }
-
             if (string.IsNullOrEmpty(userRequest.name))
             {
                 result.success = false;
@@ -216,6 +206,16 @@ public class UsersService : IUsersService
             {
                 result.success = false;
                 result.message = "Username is required.";
+                return result;
+            }
+
+            string sql = "select count(*) from Users where username = @username and id != @id";
+            int count = await _dapperContext.GetSingleValueAsync<int>(sql, new { username = userRequest.username, id = userRequest.id });
+
+            if (count > 0)
+            {
+                result.success = false;
+                result.message = "Username already exists.";
                 return result;
             }
 

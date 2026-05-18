@@ -28,15 +28,6 @@ namespace TestProject1
             _users = serviceProvider.GetService<IUsersService>();
         }
 
-        //[TestInitialize]
-        //public void TestInitialize()
-        //{
-        //    DapperContext dapper = new DapperContext(connectionStringTest);
-        //    string passwordHash = PasswordHelper.ComputeSha256Hash("admin");
-        //    string sql = "UPDATE Users SET password = @password WHERE username = 'admin'";
-        //    dapper.ExecuteAsync(sql, new { password = passwordHash }).GetAwaiter().GetResult();
-        //}
-
         [TestMethod]
         public async Task TestAdminUserCreatedInMigration()
         {

@@ -14,7 +14,7 @@ namespace JanaApi.Controllers
         private readonly INoteService _note;
         private readonly IFolderService _folder;
 
-        public ApiController(ILogger<ApiController> logger, INoteService note,  IFolderService folder)
+        public ApiController(ILogger<ApiController> logger, INoteService note, IFolderService folder)
         {
             _logger = logger;
             _note = note;

@@ -63,6 +63,13 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> UpdateUsers(UserMinimal userRequest)
     {
         Result result = new Result();
+        if (userRequest.id == 0 && (userRequest.admin == 0 || userRequest.active == 0))
+        {
+            result.success = false;
+            result.message = "Self deactivation is not permitted";
+            return BadRequest(result);
+        }
+
         try
         {
             var data = await _users.EditUserAsync(userRequest);
