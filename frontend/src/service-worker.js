@@ -288,6 +288,22 @@ self.addEventListener("message", async (event) => {
         let result = await changePassword(oldPassword, newPassword, userData.token);
         event.source.postMessage({ type: "changePassword_response", result: result });
     }
+    if (event.data.type === "adminGetUsers_request") {
+        let result = await api.adminGetUsers(userData.token);
+        event.source.postMessage({ type: "adminGetUsers_response", result });
+    }
+    if (event.data.type === "adminAddUser_request") {
+        let result = await api.adminAddUser(userData.token, event.data.obj);
+        event.source.postMessage({ type: "adminAddUser_response", result });
+    }
+    if (event.data.type === "adminEditUser_request") {
+        let result = await api.adminEditUser(userData.token, event.data.obj);
+        event.source.postMessage({ type: "adminEditUser_response", result });
+    }
+    if (event.data.type === "adminChangeUserPassword_request") {
+        let result = await api.adminChangeUserPassword(userData.token, event.data.obj.id, event.data.obj.password);
+        event.source.postMessage({ type: "adminChangeUserPassword_response", result });
+    }
 });
 
 //section receved from message
