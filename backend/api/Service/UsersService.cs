@@ -8,7 +8,7 @@ public class UsersService : IUsersService
 {
     private readonly IDapperContext _dapperContext;
     private readonly ILogger<UsersService> _logger;
-    
+
     public UsersService(IDapperContext dapperContext, ILogger<UsersService> logger)
     {
         _dapperContext = dapperContext;
@@ -21,12 +21,12 @@ public class UsersService : IUsersService
         {
             string sql = "SELECT * FROM Users WHERE username = @username AND active = 1";
             var user = await _dapperContext.GetObjectAsync<User>(sql, new { username });
-            
+
             if (user != null && PasswordHelper.VerifyPassword(password, user.password))
             {
                 return user;
             }
-            
+
             return null;
         }
         catch (Exception ex)
@@ -79,9 +79,23 @@ public class UsersService : IUsersService
                 return false;
             }
 
-            string hashedNewPassword = PasswordHelper.ComputeSha256Hash(newPassword);
+            await ChangePasswordAsync(userId, newPassword);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error check and changing password for user {UserId}", userId);
+            return false;
+        }
+    }
+
+    public async Task<bool> ChangePasswordAsync(int userId, string password)
+    {
+        try
+        {
+            string hashedNewPassword = PasswordHelper.ComputeSha256Hash(password);
             string sql = "UPDATE Users SET password = @password WHERE id = @userId";
-            
+
             await _dapperContext.UpdateAsync(sql, new { password = hashedNewPassword, userId });
             return true;
         }
@@ -98,7 +112,7 @@ public class UsersService : IUsersService
         {
             string hashedNewPassword = PasswordHelper.ComputeSha256Hash(newPassword);
             string sql = "UPDATE Users SET password = @password WHERE username = 'admin'";
-            
+
             await _dapperContext.UpdateAsync(sql, new { password = hashedNewPassword });
             return true;
         }
@@ -109,9 +123,115 @@ public class UsersService : IUsersService
         }
     }
 
-    public async Task<int> SommaId(int id)
+    public async Task<List<UserMinimal>> GetAllUsersAsync()
     {
-        return id + 1;
-        //await _dapperContext.InsertAsync("INSERT INTO [dbo].[Prova] ([Nome]) VALUES (@Nome)", new { Nome = "Prova" });
+        try
+        {
+            string sql = "SELECT * FROM Users";
+            var result = await _dapperContext.GetDataAsync<UserMinimal>(sql);
+            return result.ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting users");
+            return new List<UserMinimal>();
+        }
+    }
+
+    public async Task<ResultAdminAddUser> AddUserAsync(User userRequest)
+    {
+        ResultAdminAddUser result = new ResultAdminAddUser();
+        try
+        {
+            string sql = "select count(*) from Users where username = @username";
+            int count = await _dapperContext.GetSingleValueAsync<int>(sql, new { username = userRequest.username });
+
+            if (count > 0)
+            {
+                result.success = false;
+                result.message = "Username already exists.";
+                return result;
+            }
+
+            if (string.IsNullOrEmpty(userRequest.password))
+            {
+                result.success = false;
+                result.message = "Password is required.";
+                return result;
+            }
+
+            if (string.IsNullOrEmpty(userRequest.name))
+            {
+                result.success = false;
+                result.message = "Name is required.";
+                return result;
+            }
+
+            if (string.IsNullOrEmpty(userRequest.username))
+            {
+                result.success = false;
+                result.message = "Username is required.";
+                return result;
+            }
+
+            string hashedPassword = PasswordHelper.ComputeSha256Hash(userRequest.password);
+            sql = "INSERT INTO Users (username, password, admin, active, name) VALUES (@username, @password, @admin, 1, @name); SELECT last_insert_rowid() as int;";
+            int userId = await _dapperContext.GetSingleValueAsync<int>(sql, new { username = userRequest.username, password = hashedPassword, admin = userRequest.admin, name = userRequest.name });
+            result.success = true;
+            result.message = "User added successfully.";
+            result.id = userId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding user {Username}", userRequest.username);
+            result.success = false;
+            result.message = $"Error adding user: {ex.Message}";
+        }
+
+        return result;
+    }
+
+    public async Task<Result> EditUserAsync(UserMinimal userRequest)
+    {
+        Result result = new Result();
+        try
+        {
+            string sql = "select count(*) from Users where username = @username and id != @id";
+            int count = await _dapperContext.GetSingleValueAsync<int>(sql, new { username = userRequest.username, id = userRequest.id });
+
+            if (count > 0)
+            {
+                result.success = false;
+                result.message = "Username already exists.";
+                return result;
+            }
+
+            if (string.IsNullOrEmpty(userRequest.name))
+            {
+                result.success = false;
+                result.message = "Name is required.";
+                return result;
+            }
+
+            if (string.IsNullOrEmpty(userRequest.username))
+            {
+                result.success = false;
+                result.message = "Username is required.";
+                return result;
+            }
+
+            sql = "update Users set username = @username, admin = @admin, active = @active, name = @name where id = @id;";
+            int userId = await _dapperContext.GetSingleValueAsync<int>(sql, new { username = userRequest.username, admin = userRequest.admin, active = userRequest.active, name = userRequest.name, id = userRequest.id });
+            result.success = true;
+            result.message = "User updated successfully.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error editing user {Username}", userRequest.username);
+            result.success = false;
+            result.message = $"Error editing user: {ex.Message}";
+        }
+
+        return result;
     }
 }

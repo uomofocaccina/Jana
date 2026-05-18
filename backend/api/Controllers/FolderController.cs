@@ -28,7 +28,7 @@ public class FolderController : ControllerBase
     [HttpGet("{timestamp}")]
     public async Task<IActionResult> GetFolder(long timestamp, [FromQuery] int limit = 20, [FromQuery] int offset = 0)
     {
-        ResultDirecotoryNote result = new ResultDirecotoryNote();
+        ResultDirectoryNote result = new ResultDirectoryNote();
         int idUtente = JwtClaimsHelper.GetUserId(User);
 
         if (idUtente == -1)
