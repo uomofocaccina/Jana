@@ -179,7 +179,10 @@ namespace TestProject1
             Assert.IsNotNull(users);
             DapperContext dapper = new DapperContext(connectionStringTest);
 
-            string sql = "INSERT INTO Users (id, username, name, active, admin, created, password) VALUES (10, 'user1', 'User One', 1, 0, datetime('now'), 'a')";
+            string sql = "DELETE FROM Users WHERE id = 10";
+            await dapper.ExecuteAsync(sql);
+
+            sql = "INSERT INTO Users (id, username, name, active, admin, created, password) VALUES (10, 'user1', 'User One', 1, 0, datetime('now'), 'a')";
             await dapper.ExecuteAsync(sql);
             users = await _users.GetAllUsersAsync();
             Assert.IsNotNull(users);
