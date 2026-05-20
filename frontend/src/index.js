@@ -116,7 +116,8 @@ function createDirectoryExpandableList(data) {
         liNuovo.querySelectorAll(".editDir").forEach((el) => {
             el.style.display = el.style.display === "none" ? "inline" : "none";
         });
-        ulElement.appendChild(liNuovo);
+        // New folders are inserted at the top of the list (above notes and any existing sub-folders)
+        ulElement.prepend(liNuovo);
         const chevronEl = liElement.querySelector(".folder-chevron");
         const rowDivEl = liElement.querySelector(".folder-row");
         if (chevronEl) {
@@ -250,7 +251,8 @@ function makeOnAdd(parentId) {
             const chevron = parentLi.querySelector(".folder-chevron");
             if (chevron) chevron.style.visibility = "visible";
         }
-        ul.appendChild(createFolderLi(newDir, false, makeOnAdd(newDir.id)));
+        // New folders are inserted at the top of the list
+        ul.prepend(createFolderLi(newDir, false, makeOnAdd(newDir.id)));
         await messageToServiceWorker("syncAddFolder", newDir);
     };
 }
@@ -866,13 +868,19 @@ function registerEvents() {
                     into: "Folder",
                     values: [newDir],
                 });
-                let listaDiv = document.getElementById("lista");
-                listaDiv.innerHTML = "";
-                await writeDirAndTitle();
-                let editDir = document.querySelectorAll(".editDir");
-                editDir.forEach(function (item) {
-                    item.style.display = "inline";
+                // New root folder goes at the top of the list (no full rebuild)
+                const listaDiv = document.getElementById("lista");
+                let rootUl = listaDiv.querySelector("ul");
+                if (!rootUl) {
+                    rootUl = document.createElement("ul");
+                    listaDiv.appendChild(rootUl);
+                }
+                const newLi = createFolderLi(newDir, false, makeOnAdd(newDir.id));
+                // In edit mode, show the new folder's actions immediately
+                newLi.querySelectorAll(".editDir").forEach((el) => {
+                    el.style.display = "inline";
                 });
+                rootUl.prepend(newLi);
 
                 await messageToServiceWorker("syncAddFolder", newDir);
             } catch (error) {
@@ -1135,12 +1143,15 @@ async function showNoteSpace(tipo) {
     noteSpace.style.display = "flex";
     const notaSave = document.getElementById("notasave");
     const notaDelete = document.getElementById("notadelete");
+    const notaOperation = document.getElementById("notaOperation");
     if (tipo === "edit") {
         notaSave.textContent = "Save";
         notaDelete.style.display = "inline";
+        if (notaOperation) notaOperation.textContent = "Edit note";
     } else {
         notaSave.textContent = "Add";
         notaDelete.style.display = "none";
+        if (notaOperation) notaOperation.textContent = "New note";
     }
     notaSave.onclick = async function () {
         await saveNote();

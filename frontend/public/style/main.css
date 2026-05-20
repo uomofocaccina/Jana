@@ -97,6 +97,12 @@ ul { list-style-type: none; margin: 0; padding: 0; }
 }
 #lista { padding: 0 8px 16px; }
 #lista ul, #lista ol { padding-left: 0; }
+/* Visual indentation for sub-folders: column-style border-left to distinguish depth level */
+#lista li ul {
+    padding-left: 14px;
+    margin-left: 14px;
+    border-left: 1px dashed var(--gray-border);
+}
 
 /* Folder li */
 li[data-id] {
@@ -122,14 +128,19 @@ li[data-id] {
 .folder-row.open .folder-name { font-weight: 600; }
 .folder-chevron {
     color: #9ca3af;
-    font-size: 10px;
-    width: 12px;
+    font-size: 14px;
+    width: 28px;
+    height: 28px;
+    margin: -4px -2px -4px -6px;
     flex-shrink: 0;
     transition: transform 0.15s ease;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
 }
+.folder-chevron:hover { background: rgba(99, 102, 241, 0.12); }
 .folder-chevron.open {
     color: var(--accent);
     transform: rotate(90deg);
@@ -184,6 +195,25 @@ li[data-id] {
     background: var(--gray-header);
     border-bottom: 1px solid #d1d5db;
     padding: 12px 16px;
+}
+/* "Current operation" bar — shows what is being done (New note / Edit note).
+   Neutral toolbar style, visually separated from the gray nota-header below.
+   Designed to host other actions or selectors in the future. */
+.nota-operation {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    background: #fff;
+    border-bottom: 1px solid var(--gray-border);
+    min-height: 32px;
+}
+.nota-operation .nota-operation-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gray-mid);
+    text-transform: none;
+    letter-spacing: 0;
 }
 #notadirectory, .nota-breadcrumb {
     font-size: 11px;
