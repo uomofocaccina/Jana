@@ -90,130 +90,10 @@ function createDirectoryExpandableList(data) {
     }
 
     function addLi(item) {
-        const li = document.createElement("li");
-        li.setAttribute("data-id", item.id); // Store folder id for lookups
-        li.setAttribute("draggable", "true"); // Enable drag-and-drop reordering
-        // Drag-and-drop events
-        li.addEventListener("dragstart", handleDragStart);
-        li.addEventListener("dragover", handleDragOver);
-        li.addEventListener("drop", handleDrop);
-        // Touch events for mobile devices
-        li.addEventListener("touchstart", handleTouchStart, { passive: false });
-        li.addEventListener("touchmove", handleTouchMove, { passive: false });
-        li.addEventListener("touchend", handleTouchEnd, { passive: false });
-        li.addEventListener("touchcancel", handleTouchCancel);
-
-        const hasChildren = parentMap[item.id];
-        const rowDiv = document.createElement("div");
-        rowDiv.classList.add("folder-row");
-        const expandButton = document.createElement("span");
-        expandButton.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
-        expandButton.classList.add("folder-chevron");
-        expandButton.onclick = function () {
-            const childUl = li.querySelector("ul");
-            if (childUl.style.display === "none") {
-                childUl.style.display = "block";
-                expandButton.classList.add("open");
-                rowDiv.classList.add("open");
-                // Track open folder so it can be re-opened after list refresh
-                if (!directoryElementOpen.includes(item.id)) {
-                    directoryElementOpen.push(item.id);
-                }
-            } else {
-                childUl.style.display = "none";
-                expandButton.classList.remove("open");
-                rowDiv.classList.remove("open");
-                // Remove folder from open-tracking list
-                const index = directoryElementOpen.indexOf(item.id);
-                if (index > -1) {
-                    directoryElementOpen.splice(index, 1);
-                }
-            }
-        };
-        if (!hasChildren) {
-            expandButton.style.visibility = "hidden";
-        }
-
-        // Folder label — clicking it opens a new blank note in that folder
-        const nameSpan = document.createElement("span");
-        nameSpan.textContent = item.text;
-        nameSpan.classList.add("folder-name");
-        nameSpan.style.cursor = "pointer";
-        nameSpan.setAttribute("dirItemName", item.id);
-        nameSpan.onclick = async function () {
-            //writeLogsInPage(`Item clicked: ID=${item.id}`);
-            document.getElementById("notaid").value = "";
-            document.getElementById("notatitle").value = "";
-            document.getElementById("notatext").innerText = "";
-            document.getElementById("notadirid").value = item.id;
-            document.getElementById("notadirectory").textContent = await getDirCompletePathFromId(item.id);
-            showNoteSpace("add");
-        };
-        // Add child folder icon
-        const addIcon = document.createElement("span");
-        addIcon.textContent = "➕";
-        addIcon.style.cursor = "pointer";
-        addIcon.style.marginLeft = "2px";
-        addIcon.style.display = "none"; // Hidden until edit mode is toggled
-        addIcon.onclick = async function () {
-            //writeLogsInPage(`Add item: ID=${JSON.stringify(item)}`);
-            const newDir = await addFolder(item);
-            if (newDir) {
-                addSingleDirectoryToList(newDir, item);
-                await messageToServiceWorker("syncAddFolder", newDir);
-            }
-        };
-        addIcon.classList.add("editDir");
-
-        // Edit folder name icon
-        const editIcon = document.createElement("span");
-        editIcon.textContent = "✏️";
-        editIcon.style.cursor = "pointer";
-        editIcon.style.marginLeft = "2px";
-        editIcon.style.display = "none"; // Hidden until edit mode is toggled
-        editIcon.onclick = async function () {
-            const newName = prompt("Enter new name:", item.text);
-            if (newName && newName.trim() !== "") {
-                item.text = newName.trim(); // Update name in the local object
-                const nameSpanEl = document.querySelector(`span[dirItemName="${item.id}"]`);
-                nameSpanEl.textContent = newName.trim(); // Update label in the DOM
-                await editFolder(item, newName.trim());
-            }
-        };
-        editIcon.classList.add("editDir");
-
-        // Delete folder icon (only shown when folder has no children)
-        const deleteIcon = document.createElement("span");
-        deleteIcon.textContent = "❌";
-        deleteIcon.style.cursor = "pointer";
-        deleteIcon.style.marginLeft = "2px";
-        deleteIcon.style.display = "none"; // Hidden until edit mode is toggled
-        deleteIcon.onclick = async function () {
-            const sure = confirm("Are you sure you want to delete this folder and all its notes? " + item.text);
-
-            if (!sure) return;
-
-            await deleteDirectory(item.id);
-        };
-        deleteIcon.classList.add("editDir");
-
-        // Note count badge
-        const countSpan = document.createElement("span");
-        countSpan.textContent = " (0)"; // Initially set to 0, updated by countNoteForFolder()
-        countSpan.style.fontSize = "0.8em";
-        countSpan.style.color = "gray";
-        countSpan.setAttribute("data-count-id", item.id);
-        countSpan.classList.add("folder-count");
-
-        // Assemble the row with all inline elements
-        rowDiv.appendChild(expandButton);
-        rowDiv.appendChild(nameSpan);
-        rowDiv.appendChild(addIcon);
-        rowDiv.appendChild(editIcon);
-        if (!hasChildren) rowDiv.appendChild(deleteIcon);
-        rowDiv.appendChild(countSpan);
-        li.appendChild(rowDiv);
-
+        const li = createFolderLi(item, !!parentMap[item.id], async (newDir) => {
+            addSingleDirectoryToList(newDir, item);
+            await messageToServiceWorker("syncAddFolder", newDir);
+        });
         const childList = createList(item.id);
         if (childList) {
             childList.style.display = "none";
@@ -223,27 +103,20 @@ function createDirectoryExpandableList(data) {
     }
 
     function addSingleDirectoryToList(newDir, item) {
-        // Find the parent li and append the new folder under it
-        // (the li element whose data-id matches item.id)
         const liElement = document.querySelector(`li[data-id="${item.id}"]`);
         let ulElement = liElement.querySelector("ul");
         if (!ulElement) {
             ulElement = document.createElement("ul");
             liElement.appendChild(ulElement);
         }
-        let liNuovo = addLi(newDir);
-        // Toggle all edit buttons visible (we're already in edit mode when adding)
-        let editDir = liNuovo.querySelectorAll(".editDir");
-        editDir.forEach(function (item) {
-            if (item.style.display === "none") {
-                item.style.display = "inline";
-            } else {
-                item.style.display = "none";
-            }
+        const liNuovo = createFolderLi(newDir, false, async (d) => {
+            addSingleDirectoryToList(d, newDir);
+            await messageToServiceWorker("syncAddFolder", d);
+        });
+        liNuovo.querySelectorAll(".editDir").forEach((el) => {
+            el.style.display = el.style.display === "none" ? "inline" : "none";
         });
         ulElement.appendChild(liNuovo);
-
-        // Make parent chevron visible and expand the folder
         const chevronEl = liElement.querySelector(".folder-chevron");
         const rowDivEl = liElement.querySelector(".folder-row");
         if (chevronEl) {
@@ -252,12 +125,206 @@ function createDirectoryExpandableList(data) {
         }
         if (rowDivEl) rowDivEl.classList.add("open");
         ulElement.style.display = "block";
-        if (!directoryElementOpen.includes(item.id)) {
-            directoryElementOpen.push(item.id);
-        }
+        if (!directoryElementOpen.includes(item.id)) directoryElementOpen.push(item.id);
     }
 
     return createList(null);
+}
+
+function createFolderLi(item, hasChildren, onAdd) {
+    const li = document.createElement("li");
+    li.setAttribute("data-id", item.id);
+    li.setAttribute("draggable", "true");
+    li.addEventListener("dragstart", handleDragStart);
+    li.addEventListener("dragover", handleDragOver);
+    li.addEventListener("drop", handleDrop);
+    li.addEventListener("touchstart", handleTouchStart, { passive: false });
+    li.addEventListener("touchmove", handleTouchMove, { passive: false });
+    li.addEventListener("touchend", handleTouchEnd, { passive: false });
+    li.addEventListener("touchcancel", handleTouchCancel);
+
+    const rowDiv = document.createElement("div");
+    rowDiv.classList.add("folder-row");
+
+    const expandButton = document.createElement("span");
+    expandButton.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+    expandButton.classList.add("folder-chevron");
+    if (!hasChildren) expandButton.style.visibility = "hidden";
+    expandButton.onclick = function () {
+        const childUl = li.querySelector("ul");
+        if (!childUl) return;
+        if (childUl.style.display === "none") {
+            childUl.style.display = "block";
+            expandButton.classList.add("open");
+            rowDiv.classList.add("open");
+            if (!directoryElementOpen.includes(item.id)) directoryElementOpen.push(item.id);
+        } else {
+            childUl.style.display = "none";
+            expandButton.classList.remove("open");
+            rowDiv.classList.remove("open");
+            const index = directoryElementOpen.indexOf(item.id);
+            if (index > -1) directoryElementOpen.splice(index, 1);
+        }
+    };
+
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = item.text;
+    nameSpan.classList.add("folder-name");
+    nameSpan.style.cursor = "pointer";
+    nameSpan.setAttribute("dirItemName", item.id);
+    nameSpan.onclick = async function () {
+        document.getElementById("notaid").value = "";
+        document.getElementById("notatitle").value = "";
+        document.getElementById("notatext").innerText = "";
+        document.getElementById("notadirid").value = item.id;
+        document.getElementById("notadirectory").textContent = await getDirCompletePathFromId(item.id);
+        showNoteSpace("add");
+    };
+
+    const addIcon = document.createElement("span");
+    addIcon.textContent = "➕";
+    addIcon.style.cursor = "pointer";
+    addIcon.style.marginLeft = "2px";
+    addIcon.style.display = "none";
+    addIcon.classList.add("editDir");
+    addIcon.onclick = async function () {
+        const newDir = await addFolder(item);
+        if (newDir) await onAdd(newDir);
+    };
+
+    const editIcon = document.createElement("span");
+    editIcon.textContent = "✏️";
+    editIcon.style.cursor = "pointer";
+    editIcon.style.marginLeft = "2px";
+    editIcon.style.display = "none";
+    editIcon.classList.add("editDir");
+    editIcon.onclick = async function () {
+        const newName = prompt("Enter new name:", item.text);
+        if (newName && newName.trim() !== "") {
+            item.text = newName.trim();
+            const nameSpanEl = document.querySelector(`span[dirItemName="${item.id}"]`);
+            nameSpanEl.textContent = newName.trim();
+            await editFolder(item, newName.trim());
+        }
+    };
+
+    const deleteIcon = document.createElement("span");
+    deleteIcon.textContent = "❌";
+    deleteIcon.style.cursor = "pointer";
+    deleteIcon.style.marginLeft = "2px";
+    deleteIcon.style.display = "none";
+    deleteIcon.classList.add("editDir");
+    deleteIcon.onclick = async function () {
+        const sure = confirm("Are you sure you want to delete this folder and all its notes? " + item.text);
+        if (!sure) return;
+        await deleteDirectory(item.id);
+    };
+
+    const countSpan = document.createElement("span");
+    countSpan.textContent = " (0)";
+    countSpan.style.fontSize = "0.8em";
+    countSpan.style.color = "gray";
+    countSpan.setAttribute("data-count-id", item.id);
+    countSpan.classList.add("folder-count");
+
+    rowDiv.appendChild(expandButton);
+    rowDiv.appendChild(nameSpan);
+    rowDiv.appendChild(addIcon);
+    rowDiv.appendChild(editIcon);
+    if (!hasChildren) rowDiv.appendChild(deleteIcon);
+    rowDiv.appendChild(countSpan);
+    li.appendChild(rowDiv);
+
+    return li;
+}
+
+function makeOnAdd(parentId) {
+    return async (newDir) => {
+        const parentLi = document.querySelector(`li[data-id="${parentId}"]`);
+        if (!parentLi) return;
+        let ul = parentLi.querySelector("ul");
+        if (!ul) {
+            ul = document.createElement("ul");
+            ul.style.display = "none";
+            parentLi.appendChild(ul);
+            const chevron = parentLi.querySelector(".folder-chevron");
+            if (chevron) chevron.style.visibility = "visible";
+        }
+        ul.appendChild(createFolderLi(newDir, false, makeOnAdd(newDir.id)));
+        await messageToServiceWorker("syncAddFolder", newDir);
+    };
+}
+
+async function applyFolderBatch(folders) {
+    for (const folder of folders) {
+        if (folder.active === 0) {
+            const li = document.querySelector(`li[data-id="${folder.id}"]`);
+            if (li) li.remove();
+            continue;
+        }
+        const existing = document.querySelector(`li[data-id="${folder.id}"]`);
+        if (existing) {
+            const nameSpan = existing.querySelector(`span[dirItemName="${folder.id}"]`);
+            if (nameSpan) nameSpan.textContent = folder.text;
+        } else {
+            const newLi = createFolderLi(folder, false, makeOnAdd(folder.id));
+            if (!folder.parent) {
+                let rootUl = document.querySelector("#lista > ul");
+                if (!rootUl) {
+                    rootUl = document.createElement("ul");
+                    document.getElementById("lista").appendChild(rootUl);
+                }
+                rootUl.appendChild(newLi);
+            } else {
+                const parentLi = document.querySelector(`li[data-id="${folder.parent}"]`);
+                if (!parentLi) continue;
+                let ul = parentLi.querySelector("ul");
+                if (!ul) {
+                    ul = document.createElement("ul");
+                    ul.style.display = "none";
+                    parentLi.appendChild(ul);
+                }
+                const chevron = parentLi.querySelector(".folder-chevron");
+                if (chevron) chevron.style.visibility = "visible";
+                ul.appendChild(newLi);
+            }
+        }
+    }
+}
+
+async function applyNoteBatch(notes) {
+    for (const note of notes) {
+        if (note.active === 0) {
+            const li = document.querySelector(`li[note-id="${note.id}"]`);
+            if (li) {
+                li.remove();
+                incrementFolderCounterOfOne(note.folder, true);
+            }
+            continue;
+        }
+        const existing = document.querySelector(`li[note-id="${note.id}"]`);
+        if (existing) {
+            const titleSpan = existing.querySelector(".note-title");
+            if (titleSpan) titleSpan.textContent = note.title;
+            const rawText = (note.text || "").replace(/<[^>]+>/g, "").trim();
+            let snippetSpan = existing.querySelector(".note-snippet");
+            if (rawText) {
+                if (!snippetSpan) {
+                    snippetSpan = document.createElement("span");
+                    snippetSpan.className = "note-snippet";
+                    existing.appendChild(snippetSpan);
+                }
+                snippetSpan.textContent = rawText.slice(0, 60) + (rawText.length > 60 ? "…" : "");
+            } else if (snippetSpan) {
+                snippetSpan.remove();
+            }
+        } else {
+            const folderLi = document.querySelector(`li[data-id="${note.folder}"]`);
+            if (!folderLi) continue;
+            await writeSingleNote(note.folder, note.title, note.id, note.text);
+            incrementFolderCounterOfOne(note.folder);
+        }
+    }
 }
 
 async function addFolder(item) {
@@ -1286,10 +1353,6 @@ navigator.serviceWorker.addEventListener("message", async (event) => {
         }
     }
     if (event.data.type === "syncDataNoteAndFolder_response") {
-        if (event.data.result.folder > 0 || event.data.result.note > 0) {
-            await cleanListFolder();
-            await writeDirAndTitle();
-        }
         if (event.data.result.folder >= 0 && event.data.result.note >= 0) {
             writeLog("Sync ok!");
         } else {
@@ -1311,7 +1374,14 @@ navigator.serviceWorker.addEventListener("message", async (event) => {
         }
     }
     if (event.data.type === "syncNewData_response") {
-        writeLog("New data received, refresh manually for new data.");
+        const { data, entityType, total, processed } = event.data.obj;
+        const label = entityType === "folder" ? "Folders" : "Notes";
+        writeLog(`Sincronizzazione ${label}: ${processed} / ${total}`);
+        if (entityType === "folder") {
+            await applyFolderBatch(data);
+        } else {
+            await applyNoteBatch(data);
+        }
     }
     if (event.data.type === "writeLogsInPage") {
         console.log("writeLogsInPage:", event.data.obj.log);

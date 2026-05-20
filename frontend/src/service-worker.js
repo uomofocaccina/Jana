@@ -333,9 +333,6 @@ async function syncDataFolder(limit, token) {
         let offset = 0;
         let countRecord = 100;
         while (countRecord > offset) {
-            if (offset > 0) {
-                await postMessageWithoutEvent("syncNewData_response", { success: result });
-            }
             const resultGetDir = await api.getFolder(token, lastSyncDir, offset, limit);
             if (checkApiReturn401NeedLogin(resultGetDir)) {
                 return -1;
@@ -343,14 +340,16 @@ async function syncDataFolder(limit, token) {
             if (resultGetDir.success) {
                 countRecord = resultGetDir.count;
                 result = resultGetDir.count;
-                //await writeLogsInHomePage("Total folders:", resultGetDir.count);
-                //await writeLogsInHomePage("folders get:", resultGetDir.data);
                 if (resultGetDir.count > 0) {
                     await insertDb(resultGetDir.data, "Folder");
-                    //await writeLogsInHomePage("Folder inserted in db");
+                    await postMessageWithoutEvent("syncNewData_response", {
+                        data: resultGetDir.data,
+                        entityType: "folder",
+                        total: resultGetDir.count,
+                        processed: Math.min(offset + limit, resultGetDir.count),
+                    });
                 }
             } else {
-                //something go wrong.
                 countRecord = 0;
                 result = -1;
             }
@@ -374,9 +373,6 @@ async function syncDataNote(limit, token) {
         let offset = 0;
         let countRecord = 100;
         while (countRecord > offset) {
-            if (offset > 0) {
-                await postMessageWithoutEvent("syncNewData_response", { success: result });
-            }
             const resultGetNotes = await api.getNotes(token, lastSyncNote, offset, limit);
             if (checkApiReturn401NeedLogin(resultGetNotes)) {
                 return -1;
@@ -384,11 +380,14 @@ async function syncDataNote(limit, token) {
             if (resultGetNotes.success) {
                 countRecord = resultGetNotes.count;
                 result = resultGetNotes.count;
-                //await writeLogsInHomePage("Total notes:", resultGetNotes.count);
-                //await writeLogsInHomePage("Notes get:", resultGetNotes.data);
                 if (resultGetNotes.count > 0) {
                     await insertDb(resultGetNotes.data, "Note");
-                    //await writeLogsInHomePage("Notes inserted in db.");
+                    await postMessageWithoutEvent("syncNewData_response", {
+                        data: resultGetNotes.data,
+                        entityType: "note",
+                        total: resultGetNotes.count,
+                        processed: Math.min(offset + limit, resultGetNotes.count),
+                    });
                 }
             } else {
                 countRecord = 0;
