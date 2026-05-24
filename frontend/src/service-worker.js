@@ -346,7 +346,7 @@ async function syncDataFolder(limit, token) {
                         data: resultGetDir.data,
                         entityType: "folder",
                         total: resultGetDir.count,
-                        processed: Math.min(offset + limit, resultGetDir.count),
+                        processed: Math.min(offset + resultGetDir.data.length, resultGetDir.count),
                     });
                 }
             } else {
@@ -386,7 +386,7 @@ async function syncDataNote(limit, token) {
                         data: resultGetNotes.data,
                         entityType: "note",
                         total: resultGetNotes.count,
-                        processed: Math.min(offset + limit, resultGetNotes.count),
+                        processed: Math.min(offset + resultGetNotes.data.length, resultGetNotes.count),
                     });
                 }
             } else {

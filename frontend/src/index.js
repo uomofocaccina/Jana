@@ -8,6 +8,19 @@ console.log("API_BASE_URL:", API_BASE_URL);
 const limitApi = window.limitApi || 10;
 const jsstoreCon = window.jsstoreCon;
 let draggedElement = window.draggedElement;
+let editModeActive = false;
+
+function refreshDeleteIcon(li) {
+    if (!li) return;
+    const deleteIcon = li.querySelector(":scope > div > .folder-delete-icon");
+    if (!deleteIcon) return;
+    const hasChildren = !!li.querySelector(":scope > ul > li");
+    if (hasChildren) {
+        deleteIcon.style.display = "none";
+    } else if (editModeActive) {
+        deleteIcon.style.display = "inline";
+    }
+}
 
 async function boot() {
     registerEvents();
@@ -215,6 +228,7 @@ function createFolderLi(item, hasChildren, onAdd) {
     deleteIcon.style.marginLeft = "2px";
     deleteIcon.style.display = "none";
     deleteIcon.classList.add("editDir");
+    deleteIcon.classList.add("folder-delete-icon");
     deleteIcon.onclick = async function () {
         const sure = confirm("Are you sure you want to delete this folder and all its notes? " + item.text);
         if (!sure) return;
@@ -232,7 +246,7 @@ function createFolderLi(item, hasChildren, onAdd) {
     rowDiv.appendChild(nameSpan);
     rowDiv.appendChild(addIcon);
     rowDiv.appendChild(editIcon);
-    if (!hasChildren) rowDiv.appendChild(deleteIcon);
+    rowDiv.appendChild(deleteIcon);
     rowDiv.appendChild(countSpan);
     li.appendChild(rowDiv);
 
@@ -253,6 +267,7 @@ function makeOnAdd(parentId) {
         }
         // New folders are inserted at the top of the list
         ul.prepend(createFolderLi(newDir, false, makeOnAdd(newDir.id)));
+        refreshDeleteIcon(parentLi);
         await messageToServiceWorker("syncAddFolder", newDir);
     };
 }
@@ -261,13 +276,57 @@ async function applyFolderBatch(folders) {
     for (const folder of folders) {
         if (folder.active === 0) {
             const li = document.querySelector(`li[data-id="${folder.id}"]`);
-            if (li) li.remove();
+            if (li) {
+                const oldParentLi = li.parentElement?.closest("li[data-id]");
+                li.remove();
+                refreshDeleteIcon(oldParentLi);
+            }
             continue;
         }
         const existing = document.querySelector(`li[data-id="${folder.id}"]`);
         if (existing) {
             const nameSpan = existing.querySelector(`span[dirItemName="${folder.id}"]`);
             if (nameSpan) nameSpan.textContent = folder.text;
+            // Check if the folder was moved to a different parent
+            const currentParentLi = existing.parentElement?.closest("li[data-id]");
+            const currentParentId = currentParentLi?.getAttribute("data-id") ?? null;
+            const newParentId = folder.parent ? String(folder.parent) : null;
+            if (currentParentId !== newParentId) {
+                if (!newParentId) {
+                    // Moved to root
+                    let rootUl = document.querySelector("#lista > ul");
+                    if (!rootUl) {
+                        rootUl = document.createElement("ul");
+                        document.getElementById("lista").appendChild(rootUl);
+                    }
+                    rootUl.appendChild(existing);
+                } else {
+                    // Moved under a new parent folder
+                    const newParentLi = document.querySelector(`li[data-id="${newParentId}"]`);
+                    if (newParentLi) {
+                        let targetUl = newParentLi.querySelector(":scope > ul");
+                        if (!targetUl) {
+                            targetUl = document.createElement("ul");
+                            targetUl.style.display = "none";
+                            newParentLi.appendChild(targetUl);
+                        }
+                        targetUl.appendChild(existing);
+                        // Show chevron on the new parent
+                        const targetChevron = newParentLi.querySelector(".folder-chevron");
+                        if (targetChevron) targetChevron.style.visibility = "visible";
+                        refreshDeleteIcon(newParentLi);
+                    }
+                }
+                // Hide chevron on the old parent if it has no children left
+                if (currentParentLi) {
+                    const sourceUl = currentParentLi.querySelector(":scope > ul");
+                    if (sourceUl && sourceUl.children.length === 0) {
+                        const sourceChevron = currentParentLi.querySelector(".folder-chevron");
+                        if (sourceChevron) sourceChevron.style.visibility = "hidden";
+                    }
+                    refreshDeleteIcon(currentParentLi);
+                }
+            }
         } else {
             const newLi = createFolderLi(folder, false, makeOnAdd(folder.id));
             if (!folder.parent) {
@@ -289,6 +348,7 @@ async function applyFolderBatch(folders) {
                 const chevron = parentLi.querySelector(".folder-chevron");
                 if (chevron) chevron.style.visibility = "visible";
                 ul.appendChild(newLi);
+                refreshDeleteIcon(parentLi);
             }
         }
     }
@@ -319,6 +379,34 @@ async function applyNoteBatch(notes) {
                 snippetSpan.textContent = rawText.slice(0, 60) + (rawText.length > 60 ? "…" : "");
             } else if (snippetSpan) {
                 snippetSpan.remove();
+            }
+            // Check if the note was moved to a different folder
+            const currentFolderLi = existing.closest("li[data-id]");
+            const currentFolderId = currentFolderLi?.getAttribute("data-id");
+            if (currentFolderId && currentFolderId !== String(note.folder)) {
+                const targetFolderLi = document.querySelector(`li[data-id="${note.folder}"]`);
+                if (targetFolderLi) {
+                    let targetUl = targetFolderLi.querySelector("ul");
+                    if (!targetUl) {
+                        targetUl = document.createElement("ul");
+                        targetUl.classList.add("titoli");
+                        targetUl.style.display = "none";
+                        targetFolderLi.appendChild(targetUl);
+                    }
+                    targetUl.appendChild(existing);
+                    // Show chevron on the target folder
+                    const targetChevron = targetFolderLi.querySelector(".folder-chevron");
+                    if (targetChevron) targetChevron.style.visibility = "visible";
+                    // Update counters: decrement source, increment destination
+                    incrementFolderCounterOfOne(currentFolderId, true);
+                    incrementFolderCounterOfOne(note.folder);
+                    // Hide chevron on the source folder if it has no notes left
+                    const sourceUl = currentFolderLi.querySelector("ul");
+                    if (sourceUl && sourceUl.querySelectorAll("li[note-id]").length === 0) {
+                        const sourceChevron = currentFolderLi.querySelector(".folder-chevron");
+                        if (sourceChevron) sourceChevron.style.visibility = "hidden";
+                    }
+                }
             }
         } else {
             const folderLi = document.querySelector(`li[data-id="${note.folder}"]`);
@@ -779,6 +867,7 @@ function registerEvents() {
     editIcon.style.cursor = "pointer";
 
     editIcon.onclick = function () {
+        editModeActive = !editModeActive;
         let editDir = document.querySelectorAll(".editDir");
         editDir.forEach(function (item) {
             if (item.style.display === "none") {
@@ -787,6 +876,15 @@ function registerEvents() {
                 item.style.display = "none";
             }
         });
+        // Re-hide delete icon for folders that now have children
+        if (editModeActive) {
+            document.querySelectorAll(".folder-delete-icon").forEach((icon) => {
+                const li = icon.closest("li[data-id]");
+                if (li && li.querySelector(":scope > ul > li")) {
+                    icon.style.display = "none";
+                }
+            });
+        }
     };
 
     let searchIcon = document.getElementById("showSearchIcon");
