@@ -57,3 +57,4 @@ AGENT.md
 AGENTS.md
 copilot-instructions.md
 backend/api/JanaApi.csproj.user
+.playwright-mcp/
