@@ -169,7 +169,7 @@ function createFolderLi(item, hasChildren, onAdd) {
     expandButton.classList.add("folder-chevron");
     if (!hasChildren) expandButton.style.visibility = "hidden";
     expandButton.onclick = function () {
-        const childUl = li.querySelector("ul");
+        const childUl = li.querySelector(":scope > ul");
         if (!childUl) return;
         if (childUl.style.display === "none") {
             childUl.style.display = "block";
@@ -370,7 +370,7 @@ async function applyFolderBatch(folders) {
             } else {
                 const parentLi = document.querySelector(`li[data-id="${folder.parent}"]`);
                 if (!parentLi) return false; // parent not yet in DOM — defer
-                let ul = parentLi.querySelector("ul");
+                let ul = parentLi.querySelector(":scope > ul");
                 if (!ul) {
                     ul = document.createElement("ul");
                     ul.style.display = "none";
@@ -701,7 +701,9 @@ function handleDrop(event) {
 
     if (draggedItemId) {
         //writeLogsInPage(`Folder dropped: ID=${draggedItemId}`);
-        const newParent = event.target.closest("li");
+        // Only folder li[data-id] are valid drop targets — dropping on a note
+        // would corrupt the DOM/DB (folder nested inside a note).
+        const newParent = event.target.closest("li[data-id]");
         const newParentId = newParent ? newParent.getAttribute("data-id") : null;
 
         // Move the dragged element into the new parent
@@ -710,14 +712,22 @@ function handleDrop(event) {
             let ul = newParent.querySelector(":scope > ul");
             if (!ul) {
                 ul = document.createElement("ul");
+                ul.style.display = "none";
                 newParent.appendChild(ul);
             }
             ul.appendChild(draggedElement);
             updateDirectoryPosition(draggedItemId, newParentId);
 
-            // Refresh chevron + delete-icon state on both parents
+            // Expand the new parent so the dropped folder is visible
+            ul.style.display = "block";
             const newChevron = newParent.querySelector(".folder-chevron");
-            if (newChevron) newChevron.style.visibility = "visible";
+            const newRowDiv = newParent.querySelector(".folder-row");
+            if (newChevron) {
+                newChevron.style.visibility = "visible";
+                newChevron.classList.add("open");
+            }
+            if (newRowDiv) newRowDiv.classList.add("open");
+            if (!directoryElementOpen.includes(newParentId)) directoryElementOpen.push(newParentId);
             refreshDeleteIcon(newParent);
             if (oldParentLi) {
                 const oldUl = oldParentLi.querySelector(":scope > ul");
