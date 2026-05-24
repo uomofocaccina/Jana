@@ -14,7 +14,7 @@ function refreshDeleteIcon(li) {
     if (!li) return;
     const deleteIcon = li.querySelector(":scope > div > .folder-delete-icon");
     if (!deleteIcon) return;
-    const hasChildren = !!li.querySelector(":scope > ul > li");
+    const hasChildren = !!li.querySelector(":scope > ul > li[data-id]");
     if (hasChildren) {
         deleteIcon.style.display = "none";
     } else if (editModeActive) {
@@ -273,7 +273,13 @@ function makeOnAdd(parentId) {
 }
 
 async function applyFolderBatch(folders) {
-    for (const folder of folders) {
+    // New folders whose parent isn't in the DOM yet are deferred and retried.
+    // This handles the case where the server returns a child before its parent
+    // (e.g. an old folder moved under a newly created parent).
+    const deferred = [];
+    const toProcess = [...folders];
+
+    const processFolder = (folder) => {
         if (folder.active === 0) {
             const li = document.querySelector(`li[data-id="${folder.id}"]`);
             if (li) {
@@ -281,7 +287,7 @@ async function applyFolderBatch(folders) {
                 li.remove();
                 refreshDeleteIcon(oldParentLi);
             }
-            continue;
+            return true; // consumed
         }
         const existing = document.querySelector(`li[data-id="${folder.id}"]`);
         if (existing) {
@@ -338,7 +344,7 @@ async function applyFolderBatch(folders) {
                 rootUl.appendChild(newLi);
             } else {
                 const parentLi = document.querySelector(`li[data-id="${folder.parent}"]`);
-                if (!parentLi) continue;
+                if (!parentLi) return false; // parent not yet in DOM — defer
                 let ul = parentLi.querySelector("ul");
                 if (!ul) {
                     ul = document.createElement("ul");
@@ -349,6 +355,27 @@ async function applyFolderBatch(folders) {
                 if (chevron) chevron.style.visibility = "visible";
                 ul.appendChild(newLi);
                 refreshDeleteIcon(parentLi);
+            }
+        }
+        return true; // consumed
+    };
+
+    // First pass
+    for (const folder of toProcess) {
+        if (!processFolder(folder)) deferred.push(folder);
+    }
+
+    // Retry deferred folders until no progress is made (handles arbitrary nesting depth)
+    let progress = true;
+    while (deferred.length > 0 && progress) {
+        progress = false;
+        const remaining = [...deferred];
+        deferred.length = 0;
+        for (const folder of remaining) {
+            if (processFolder(folder)) {
+                progress = true;
+            } else {
+                deferred.push(folder);
             }
         }
     }
@@ -400,9 +427,9 @@ async function applyNoteBatch(notes) {
                     // Update counters: decrement source, increment destination
                     incrementFolderCounterOfOne(currentFolderId, true);
                     incrementFolderCounterOfOne(note.folder);
-                    // Hide chevron on the source folder if it has no notes left
+                    // Hide chevron on the source folder if it has no children left (notes or subfolders)
                     const sourceUl = currentFolderLi.querySelector("ul");
-                    if (sourceUl && sourceUl.querySelectorAll("li[note-id]").length === 0) {
+                    if (sourceUl && sourceUl.children.length === 0) {
                         const sourceChevron = currentFolderLi.querySelector(".folder-chevron");
                         if (sourceChevron) sourceChevron.style.visibility = "hidden";
                     }
@@ -880,7 +907,7 @@ function registerEvents() {
         if (editModeActive) {
             document.querySelectorAll(".folder-delete-icon").forEach((icon) => {
                 const li = icon.closest("li[data-id]");
-                if (li && li.querySelector(":scope > ul > li")) {
+                if (li && li.querySelector(":scope > ul > li[data-id]")) {
                     icon.style.display = "none";
                 }
             });
