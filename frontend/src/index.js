@@ -11,6 +11,8 @@ let draggedElement = window.draggedElement;
 let editModeActive = false;
 // Folders deferred across pages because their parent hadn't arrived yet
 let pendingFolderSync = [];
+// Notes deferred because their folder wasn't in the DOM yet
+let pendingNoteSync = [];
 
 function refreshDeleteIcon(li) {
     if (!li) return;
@@ -119,7 +121,7 @@ function createDirectoryExpandableList(data) {
 
     function addSingleDirectoryToList(newDir, item) {
         const liElement = document.querySelector(`li[data-id="${item.id}"]`);
-        let ulElement = liElement.querySelector("ul");
+        let ulElement = liElement.querySelector(":scope > ul");
         if (!ulElement) {
             ulElement = document.createElement("ul");
             liElement.appendChild(ulElement);
@@ -128,9 +130,9 @@ function createDirectoryExpandableList(data) {
             addSingleDirectoryToList(d, newDir);
             await messageToServiceWorker("syncAddFolder", d);
         });
-        liNuovo.querySelectorAll(".editDir").forEach((el) => {
-            el.style.display = el.style.display === "none" ? "inline" : "none";
-        });
+        if (editModeActive) {
+            liNuovo.querySelectorAll(".editDir").forEach((el) => (el.style.display = "inline"));
+        }
         // New folders are inserted at the top of the list (above notes and any existing sub-folders)
         ulElement.prepend(liNuovo);
         const chevronEl = liElement.querySelector(".folder-chevron");
@@ -259,22 +261,36 @@ function makeOnAdd(parentId) {
     return async (newDir) => {
         const parentLi = document.querySelector(`li[data-id="${parentId}"]`);
         if (!parentLi) return;
-        let ul = parentLi.querySelector("ul");
+        let ul = parentLi.querySelector(":scope > ul");
         if (!ul) {
             ul = document.createElement("ul");
-            ul.style.display = "none";
             parentLi.appendChild(ul);
-            const chevron = parentLi.querySelector(".folder-chevron");
-            if (chevron) chevron.style.visibility = "visible";
         }
         // New folders are inserted at the top of the list
-        ul.prepend(createFolderLi(newDir, false, makeOnAdd(newDir.id)));
+        const newLi = createFolderLi(newDir, false, makeOnAdd(newDir.id));
+        if (editModeActive) {
+            newLi.querySelectorAll(".editDir").forEach((el) => (el.style.display = "inline"));
+        }
+        ul.prepend(newLi);
+        // Expand the parent so the new folder is visible immediately
+        ul.style.display = "block";
+        const chevron = parentLi.querySelector(".folder-chevron");
+        const rowDiv = parentLi.querySelector(".folder-row");
+        if (chevron) {
+            chevron.style.visibility = "visible";
+            chevron.classList.add("open");
+        }
+        if (rowDiv) rowDiv.classList.add("open");
+        if (!directoryElementOpen.includes(parentId)) directoryElementOpen.push(parentId);
         refreshDeleteIcon(parentLi);
         await messageToServiceWorker("syncAddFolder", newDir);
     };
 }
 
 async function applyFolderBatch(folders) {
+    // If the folder list isn't mounted (e.g. user is on the login screen),
+    // skip DOM work — data is already persisted in IndexedDB and will render on next mount.
+    if (!document.getElementById("lista")) return;
     // New folders whose parent isn't in the DOM yet are deferred and retried.
     // This handles the case where the server returns a child before its parent
     // (e.g. an old folder moved under a newly created parent).
@@ -316,23 +332,21 @@ async function applyFolderBatch(folders) {
                         rootUl = document.createElement("ul");
                         document.getElementById("lista").appendChild(rootUl);
                     }
-                    rootUl.appendChild(existing);
+                    rootUl.prepend(existing);
                 } else {
                     // Moved under a new parent folder
                     const newParentLi = document.querySelector(`li[data-id="${newParentId}"]`);
-                    if (newParentLi) {
-                        let targetUl = newParentLi.querySelector(":scope > ul");
-                        if (!targetUl) {
-                            targetUl = document.createElement("ul");
-                            targetUl.style.display = "none";
-                            newParentLi.appendChild(targetUl);
-                        }
-                        targetUl.appendChild(existing);
-                        // Show chevron on the new parent
-                        const targetChevron = newParentLi.querySelector(".folder-chevron");
-                        if (targetChevron) targetChevron.style.visibility = "visible";
-                        refreshDeleteIcon(newParentLi);
+                    if (!newParentLi) return false; // new parent not yet in DOM — defer
+                    let targetUl = newParentLi.querySelector(":scope > ul");
+                    if (!targetUl) {
+                        targetUl = document.createElement("ul");
+                        targetUl.style.display = "none";
+                        newParentLi.appendChild(targetUl);
                     }
+                    targetUl.prepend(existing);
+                    const targetChevron = newParentLi.querySelector(".folder-chevron");
+                    if (targetChevron) targetChevron.style.visibility = "visible";
+                    refreshDeleteIcon(newParentLi);
                 }
                 // Hide chevron on the old parent if it has no children left
                 if (currentParentLi) {
@@ -393,10 +407,20 @@ async function applyFolderBatch(folders) {
 
     // Any folders still unresolved will be retried when the next page arrives
     pendingFolderSync = deferred;
+    // Folders just landed in the DOM may unblock notes that were deferred.
+    if (pendingNoteSync.length > 0) {
+        await applyNoteBatch([]);
+    }
 }
 
 async function applyNoteBatch(notes) {
-    for (const note of notes) {
+    if (!document.getElementById("lista")) return;
+    // Include notes deferred from previous pages so they get another chance
+    // now that more folders may have arrived in the DOM.
+    const toProcess = [...pendingNoteSync, ...notes];
+    pendingNoteSync = [];
+    const deferred = [];
+    for (const note of toProcess) {
         if (note.active === 0) {
             const li = document.querySelector(`li[note-id="${note.id}"]`);
             if (li) {
@@ -427,7 +451,7 @@ async function applyNoteBatch(notes) {
             if (currentFolderId && currentFolderId !== String(note.folder)) {
                 const targetFolderLi = document.querySelector(`li[data-id="${note.folder}"]`);
                 if (targetFolderLi) {
-                    let targetUl = targetFolderLi.querySelector("ul");
+                    let targetUl = targetFolderLi.querySelector(":scope > ul");
                     if (!targetUl) {
                         targetUl = document.createElement("ul");
                         targetUl.classList.add("titoli");
@@ -442,7 +466,7 @@ async function applyNoteBatch(notes) {
                     incrementFolderCounterOfOne(currentFolderId, true);
                     incrementFolderCounterOfOne(note.folder);
                     // Hide chevron on the source folder if it has no children left (notes or subfolders)
-                    const sourceUl = currentFolderLi.querySelector("ul");
+                    const sourceUl = currentFolderLi.querySelector(":scope > ul");
                     if (sourceUl && sourceUl.children.length === 0) {
                         const sourceChevron = currentFolderLi.querySelector(".folder-chevron");
                         if (sourceChevron) sourceChevron.style.visibility = "hidden";
@@ -451,11 +475,16 @@ async function applyNoteBatch(notes) {
             }
         } else {
             const folderLi = document.querySelector(`li[data-id="${note.folder}"]`);
-            if (!folderLi) continue;
+            if (!folderLi) {
+                // Parent folder isn't in the DOM yet — defer to the next batch
+                deferred.push(note);
+                continue;
+            }
             await writeSingleNote(note.folder, note.title, note.id, note.text);
             incrementFolderCounterOfOne(note.folder);
         }
     }
+    pendingNoteSync = deferred;
 }
 
 async function addFolder(item) {
@@ -677,10 +706,27 @@ function handleDrop(event) {
 
         // Move the dragged element into the new parent
         if (newParent && newParent !== draggedElement) {
-            const ul = newParent.querySelector("ul") || document.createElement("ul");
-            newParent.appendChild(ul);
+            const oldParentLi = draggedElement.parentElement?.closest("li[data-id]");
+            let ul = newParent.querySelector(":scope > ul");
+            if (!ul) {
+                ul = document.createElement("ul");
+                newParent.appendChild(ul);
+            }
             ul.appendChild(draggedElement);
             updateDirectoryPosition(draggedItemId, newParentId);
+
+            // Refresh chevron + delete-icon state on both parents
+            const newChevron = newParent.querySelector(".folder-chevron");
+            if (newChevron) newChevron.style.visibility = "visible";
+            refreshDeleteIcon(newParent);
+            if (oldParentLi) {
+                const oldUl = oldParentLi.querySelector(":scope > ul");
+                if (oldUl && oldUl.children.length === 0) {
+                    const oldChevron = oldParentLi.querySelector(".folder-chevron");
+                    if (oldChevron) oldChevron.style.visibility = "hidden";
+                }
+                refreshDeleteIcon(oldParentLi);
+            }
         }
 
         // Restore opacity
@@ -1015,10 +1061,9 @@ function registerEvents() {
                     listaDiv.appendChild(rootUl);
                 }
                 const newLi = createFolderLi(newDir, false, makeOnAdd(newDir.id));
-                // In edit mode, show the new folder's actions immediately
-                newLi.querySelectorAll(".editDir").forEach((el) => {
-                    el.style.display = "inline";
-                });
+                if (editModeActive) {
+                    newLi.querySelectorAll(".editDir").forEach((el) => (el.style.display = "inline"));
+                }
                 rootUl.prepend(newLi);
 
                 await messageToServiceWorker("syncAddFolder", newDir);
@@ -1503,6 +1548,16 @@ navigator.serviceWorker.addEventListener("message", async (event) => {
         }
     }
     if (event.data.type === "syncDataNoteAndFolder_response") {
+        // Drain deferred queues now that all sync pages have arrived.
+        // If anything is still unresolved (e.g. parent folder never came), do
+        // a full rebuild from local DB as a safety net so the UI never shows
+        // stale state.
+        if (pendingFolderSync.length > 0) await applyFolderBatch([]);
+        if (pendingNoteSync.length > 0) await applyNoteBatch([]);
+        if (pendingFolderSync.length > 0 || pendingNoteSync.length > 0) {
+            await cleanListFolder();
+            await writeDirAndTitle();
+        }
         if (event.data.result.folder >= 0 && event.data.result.note >= 0) {
             writeLog("Sync ok!");
         } else {
@@ -1603,6 +1658,9 @@ navigator.serviceWorker.addEventListener("message", async (event) => {
 async function cleanListFolder() {
     let listaDiv = document.getElementById("lista");
     listaDiv.innerHTML = "";
+    pendingFolderSync = [];
+    pendingNoteSync = [];
+    editModeActive = false;
 }
 
 async function messageToServiceWorker(type, data) {
