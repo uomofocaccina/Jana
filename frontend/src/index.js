@@ -9,6 +9,8 @@ const limitApi = window.limitApi || 10;
 const jsstoreCon = window.jsstoreCon;
 let draggedElement = window.draggedElement;
 let editModeActive = false;
+// Folders deferred across pages because their parent hadn't arrived yet
+let pendingFolderSync = [];
 
 function refreshDeleteIcon(li) {
     if (!li) return;
@@ -277,14 +279,23 @@ async function applyFolderBatch(folders) {
     // This handles the case where the server returns a child before its parent
     // (e.g. an old folder moved under a newly created parent).
     const deferred = [];
-    const toProcess = [...folders];
+    // Include folders deferred from previous pages so they get a chance to
+    // find their parent now that more folders may have arrived.
+    const toProcess = [...pendingFolderSync, ...folders];
+    pendingFolderSync = [];
 
     const processFolder = (folder) => {
         if (folder.active === 0) {
             const li = document.querySelector(`li[data-id="${folder.id}"]`);
             if (li) {
                 const oldParentLi = li.parentElement?.closest("li[data-id]");
+                const oldParentUl = li.parentElement;
                 li.remove();
+                // Hide chevron on the parent if it no longer has any children
+                if (oldParentLi && oldParentUl && oldParentUl.children.length === 0) {
+                    const chevron = oldParentLi.querySelector(".folder-chevron");
+                    if (chevron) chevron.style.visibility = "hidden";
+                }
                 refreshDeleteIcon(oldParentLi);
             }
             return true; // consumed
@@ -379,6 +390,9 @@ async function applyFolderBatch(folders) {
             }
         }
     }
+
+    // Any folders still unresolved will be retried when the next page arrives
+    pendingFolderSync = deferred;
 }
 
 async function applyNoteBatch(notes) {
