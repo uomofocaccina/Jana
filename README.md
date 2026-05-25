@@ -1,4 +1,4 @@
-Jana 0.9
+Jana 0.9.1
 Just Another Note Application.
 ===========================
 
