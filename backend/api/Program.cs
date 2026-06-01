@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using JanaApi.Dapper;
 using JanaApi.Service;
 using JanaApi.Utilities;
 using System.Text;
+using System.Threading.RateLimiting;
 
 namespace JanaApi
 {
@@ -99,6 +101,21 @@ namespace JanaApi
                 });
             });
 
+            // Rate limiting on login: max 5 try/minute 
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                options.AddPolicy("login", httpContext =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                        factory: _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 5,
+                            Window = TimeSpan.FromMinutes(1),
+                            QueueLimit = 0
+                        }));
+            });
+
             //DI
             builder.Services.AddSingleton<IConfiguration>(configuration);
             builder.Services.AddScoped<IDapperContext, DapperContext>((_) => new DapperContext(_connectionString));
@@ -129,7 +146,31 @@ namespace JanaApi
                 app.UseSwaggerUI();
             }
 
+            // Security headers.
+            app.Use(async (context, next) =>
+            {
+                var headers = context.Response.Headers;
+                if (app.Environment.IsDevelopment())
+                {
+                    headers["Content-Security-Policy"] =
+                        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+                        "img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
+                }
+                else
+                {
+                    headers["Content-Security-Policy"] =
+                        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+                        "img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
+                }
+
+                headers["X-Content-Type-Options"] = "nosniff";
+                headers["X-Frame-Options"] = "DENY";
+                headers["Referrer-Policy"] = "no-referrer";
+                await next();
+            });
+
             app.UseCors();
+            app.UseRateLimiter();
             app.UseDefaultFiles();
             app.UseStaticFiles();
             app.UseAuthentication();
@@ -164,7 +205,7 @@ namespace JanaApi
                 {
                     var usersService = scope.ServiceProvider.GetRequiredService<IUsersService>();
                     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-                    
+
                     try
                     {
                         await usersService.UpdateAdminPasswordAsync(adminPassword);

@@ -10,11 +10,13 @@ export function writeLogsInPage(...args) {
     console.log(log);
     const logsContainer = document.getElementById("logs");
     if (logsContainer) {
-        //read the current log and put the new log in the top
-        let currentLogs = logsContainer.innerHTML;
-        // Prepend current timestamp to each log entry
+        // Prepend current timestamp to each log entry.
+        // Use textContent (not innerHTML) so log content — which may include
+        // JSON.stringify'd user data (note/folder titles) that does NOT escape
+        // < and > — cannot be interpreted as HTML (DOM XSS).
         let currentDate = new Date().toLocaleString();
-        let newlog = currentDate + "-" + log + "<br>";
-        logsContainer.innerHTML = newlog + currentLogs;
+        const entry = document.createElement("div");
+        entry.textContent = currentDate + "-" + log;
+        logsContainer.prepend(entry);
     }
 }
