@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using JanaApi.Model;
 using JanaApi.Service;
 using JanaApi.Utilities;
@@ -24,6 +25,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("login")]
     public async Task<IActionResult> Login(LoginRequest request)
     {
         LoginResult result = new LoginResult();

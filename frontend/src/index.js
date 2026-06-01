@@ -928,19 +928,19 @@ async function initDb() {
 
 function writeError(message) {
     let errorSpace = document.getElementById("errorsPanel");
-    errorSpace.innerHTML = message;
+    errorSpace.textContent = message;
     errorSpace.style.color = "red";
     setTimeout(() => {
-        errorSpace.innerHTML = "";
+        errorSpace.textContent = "";
     }, 5000);
 }
 
 function writeLog(message) {
     let errorSpace = document.getElementById("errorsPanel");
-    errorSpace.innerHTML = message;
+    errorSpace.textContent = message;
     errorSpace.style.color = "green";
     setTimeout(() => {
-        errorSpace.innerHTML = "";
+        errorSpace.textContent = "";
     }, 5000);
 }
 
