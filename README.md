@@ -6,6 +6,10 @@ This is a simple note-taking application built with a frontend using plain Javas
 
 <p align="center"><img src="logo.png" alt="Jana logo" /></p>
 
+Try it online
+--------
+You can try JANA without installing anything: sign up at **https://signup.try-jana.com/** and start taking notes right away.
+
 Why Jana?
 --------
 After reading Tiago Forte's book "Build a Second Brain", I decided to create a simple app to organize notes that could help me manage my ideas and knowledge more effectively.
