@@ -8,22 +8,93 @@ console.log("API_BASE_URL:", API_BASE_URL);
 const limitApi = window.limitApi || 10;
 const jsstoreCon = window.jsstoreCon;
 let draggedElement = window.draggedElement;
-let editModeActive = false;
 // Folders deferred across pages because their parent hadn't arrived yet
 let pendingFolderSync = [];
 // Notes deferred because their folder wasn't in the DOM yet
 let pendingNoteSync = [];
 
-function refreshDeleteIcon(li) {
-    if (!li) return;
-    const deleteIcon = li.querySelector(":scope > div > .folder-delete-icon");
-    if (!deleteIcon) return;
-    const hasChildren = !!li.querySelector(":scope > ul > li[data-id]");
-    if (hasChildren) {
-        deleteIcon.style.display = "none";
-    } else if (editModeActive) {
-        deleteIcon.style.display = "inline";
-    }
+// ===== Shared folder context menu =====
+// A single menu node reused for every folder (and the sidebar header).
+let folderContextMenuEl = null;
+// The element that opened the menu (e.g. a kebab button), used to support toggle-close.
+let folderContextMenuAnchor = null;
+
+function ensureFolderContextMenu() {
+    if (folderContextMenuEl) return folderContextMenuEl;
+    const menu = document.createElement("div");
+    menu.id = "folderContextMenu";
+    menu.className = "folder-context-menu";
+    menu.style.display = "none";
+    document.body.appendChild(menu);
+    folderContextMenuEl = menu;
+    return menu;
+}
+
+function closeContextMenu() {
+    if (folderContextMenuEl) folderContextMenuEl.style.display = "none";
+    folderContextMenuAnchor = null;
+    document.removeEventListener("mousedown", onContextMenuOutside, true);
+    document.removeEventListener("keydown", onContextMenuKey, true);
+    window.removeEventListener("scroll", closeContextMenu, true);
+    window.removeEventListener("resize", closeContextMenu, true);
+}
+
+function onContextMenuOutside(event) {
+    if (!folderContextMenuEl || folderContextMenuEl.contains(event.target)) return;
+    // Don't close on a click on the opening anchor: let its own handler toggle the menu.
+    if (folderContextMenuAnchor && folderContextMenuAnchor.contains(event.target)) return;
+    closeContextMenu();
+}
+
+function onContextMenuKey(event) {
+    if (event.key === "Escape") closeContextMenu();
+}
+
+// items: array of { icon, label, onClick, danger?, disabled? }
+// position: { x, y } in viewport coordinates
+// anchor: optional element that opened the menu (enables toggle-close on re-click)
+function openContextMenu(items, position, anchor) {
+    const menu = ensureFolderContextMenu();
+    folderContextMenuAnchor = anchor || null;
+    menu.innerHTML = "";
+    items.forEach((item) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "folder-context-item";
+        if (item.danger) btn.classList.add("danger");
+        if (item.disabled) btn.disabled = true;
+        btn.innerHTML = `<i class="${item.icon}"></i><span>${item.label}</span>`;
+        if (!item.disabled) {
+            btn.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                closeContextMenu();
+                await item.onClick();
+            });
+        }
+        menu.appendChild(btn);
+    });
+
+    // Show off-screen first to measure, then clamp inside the viewport.
+    menu.style.visibility = "hidden";
+    menu.style.display = "block";
+    menu.style.left = "0px";
+    menu.style.top = "0px";
+    const rect = menu.getBoundingClientRect();
+    let x = position.x;
+    let y = position.y;
+    if (x + rect.width > window.innerWidth - 8) x = Math.max(8, window.innerWidth - rect.width - 8);
+    if (y + rect.height > window.innerHeight - 8) y = Math.max(8, window.innerHeight - rect.height - 8);
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    menu.style.visibility = "visible";
+
+    // Defer listener attachment so the opening click doesn't immediately close it.
+    setTimeout(() => {
+        document.addEventListener("mousedown", onContextMenuOutside, true);
+        document.addEventListener("keydown", onContextMenuKey, true);
+        window.addEventListener("scroll", closeContextMenu, true);
+        window.addEventListener("resize", closeContextMenu, true);
+    }, 0);
 }
 
 async function boot() {
@@ -130,9 +201,6 @@ function createDirectoryExpandableList(data) {
             addSingleDirectoryToList(d, newDir);
             await messageToServiceWorker("syncAddFolder", d);
         });
-        if (editModeActive) {
-            liNuovo.querySelectorAll(".editDir").forEach((el) => (el.style.display = "inline"));
-        }
         // New folders are inserted at the top of the list (above notes and any existing sub-folders)
         ulElement.prepend(liNuovo);
         const chevronEl = liElement.querySelector(".folder-chevron");
@@ -147,6 +215,84 @@ function createDirectoryExpandableList(data) {
     }
 
     return createList(null);
+}
+
+// Expand/collapse a folder's children. Shared by the chevron and the folder name.
+function toggleFolder(li, expandButton, rowDiv, item) {
+    const childUl = li.querySelector(":scope > ul");
+    if (!childUl) return;
+    if (childUl.style.display === "none") {
+        childUl.style.display = "block";
+        expandButton.classList.add("open");
+        rowDiv.classList.add("open");
+        if (!directoryElementOpen.includes(item.id)) directoryElementOpen.push(item.id);
+    } else {
+        childUl.style.display = "none";
+        expandButton.classList.remove("open");
+        rowDiv.classList.remove("open");
+        const index = directoryElementOpen.indexOf(item.id);
+        if (index > -1) directoryElementOpen.splice(index, 1);
+    }
+}
+
+// Open the note editor in "add" mode, pre-filled for the given folder.
+async function newNoteInFolder(item) {
+    document.getElementById("notaid").value = "";
+    document.getElementById("notatitle").value = "";
+    document.getElementById("notatext").innerText = "";
+    document.getElementById("notadirid").value = item.id;
+    document.getElementById("notadirectory").textContent = await getDirCompletePathFromId(item.id);
+    showNoteSpace("add");
+}
+
+// Build the four context-menu actions for a folder. Reuses the existing
+// addFolder / editFolder / deleteDirectory operations.
+function folderMenuItems(item, onAdd) {
+    const li = document.querySelector(`li[data-id="${item.id}"]`);
+    const hasSubfolders = !!(li && li.querySelector(":scope > ul > li[data-id]"));
+    return [
+        {
+            icon: "fa-solid fa-file-circle-plus",
+            label: "New note",
+            onClick: async () => {
+                await newNoteInFolder(item);
+            },
+        },
+        {
+            icon: "fa-solid fa-folder-plus",
+            label: "New folder",
+            onClick: async () => {
+                const newDir = await addFolder(item);
+                if (newDir) await onAdd(newDir);
+            },
+        },
+        {
+            icon: "fa-solid fa-pen",
+            label: "Edit folder",
+            onClick: async () => {
+                const newName = prompt("Folder name: ", item.text);
+                if (newName && newName.trim() !== "") {
+                    item.text = newName.trim();
+                    const nameSpanEl = document.querySelector(`span[dirItemName="${item.id}"]`);
+                    if (nameSpanEl) nameSpanEl.textContent = newName.trim();
+                    await editFolder(item, newName.trim());
+                }
+            },
+        },
+        {
+            icon: "fa-solid fa-trash",
+            label: "Delete folder",
+            danger: true,
+            // Keep the existing safeguard: a folder with sub-folders can't be deleted
+            // (deleteDirectory does not cascade to sub-folders).
+            disabled: hasSubfolders,
+            onClick: async () => {
+                const sure = confirm("Are you sure you want to delete this folder and all its notes? " + item.text);
+                if (!sure) return;
+                await deleteDirectory(item.id);
+            },
+        },
+    ];
 }
 
 function createFolderLi(item, hasChildren, onAdd) {
@@ -169,20 +315,7 @@ function createFolderLi(item, hasChildren, onAdd) {
     expandButton.classList.add("folder-chevron");
     if (!hasChildren) expandButton.style.visibility = "hidden";
     expandButton.onclick = function () {
-        const childUl = li.querySelector(":scope > ul");
-        if (!childUl) return;
-        if (childUl.style.display === "none") {
-            childUl.style.display = "block";
-            expandButton.classList.add("open");
-            rowDiv.classList.add("open");
-            if (!directoryElementOpen.includes(item.id)) directoryElementOpen.push(item.id);
-        } else {
-            childUl.style.display = "none";
-            expandButton.classList.remove("open");
-            rowDiv.classList.remove("open");
-            const index = directoryElementOpen.indexOf(item.id);
-            if (index > -1) directoryElementOpen.splice(index, 1);
-        }
+        toggleFolder(li, expandButton, rowDiv, item);
     };
 
     const nameSpan = document.createElement("span");
@@ -190,54 +323,31 @@ function createFolderLi(item, hasChildren, onAdd) {
     nameSpan.classList.add("folder-name");
     nameSpan.style.cursor = "pointer";
     nameSpan.setAttribute("dirItemName", item.id);
-    nameSpan.onclick = async function () {
-        document.getElementById("notaid").value = "";
-        document.getElementById("notatitle").value = "";
-        document.getElementById("notatext").innerText = "";
-        document.getElementById("notadirid").value = item.id;
-        document.getElementById("notadirectory").textContent = await getDirCompletePathFromId(item.id);
-        showNoteSpace("add");
+    nameSpan.onclick = function () {
+        toggleFolder(li, expandButton, rowDiv, item);
     };
 
-    const addIcon = document.createElement("span");
-    addIcon.textContent = "➕";
-    addIcon.style.cursor = "pointer";
-    addIcon.style.marginLeft = "2px";
-    addIcon.style.display = "none";
-    addIcon.classList.add("editDir");
-    addIcon.onclick = async function () {
-        const newDir = await addFolder(item);
-        if (newDir) await onAdd(newDir);
-    };
-
-    const editIcon = document.createElement("span");
-    editIcon.textContent = "✏️";
-    editIcon.style.cursor = "pointer";
-    editIcon.style.marginLeft = "2px";
-    editIcon.style.display = "none";
-    editIcon.classList.add("editDir");
-    editIcon.onclick = async function () {
-        const newName = prompt("Enter new name:", item.text);
-        if (newName && newName.trim() !== "") {
-            item.text = newName.trim();
-            const nameSpanEl = document.querySelector(`span[dirItemName="${item.id}"]`);
-            nameSpanEl.textContent = newName.trim();
-            await editFolder(item, newName.trim());
+    // Kebab icon: opens the folder context menu just below/right of the icon.
+    const menuBtn = document.createElement("span");
+    menuBtn.className = "folder-menu-btn";
+    menuBtn.innerHTML = '<i class="fa-solid fa-ellipsis-vertical"></i>';
+    menuBtn.setAttribute("title", "Folder actions");
+    menuBtn.onclick = function (e) {
+        e.stopPropagation();
+        // Toggle: a second click on the same kebab closes the open menu instead of reopening it.
+        if (folderContextMenuEl && folderContextMenuEl.style.display === "block" && folderContextMenuAnchor === menuBtn) {
+            closeContextMenu();
+            return;
         }
+        const r = menuBtn.getBoundingClientRect();
+        openContextMenu(folderMenuItems(item, onAdd), { x: r.left, y: r.bottom + 2 }, menuBtn);
     };
 
-    const deleteIcon = document.createElement("span");
-    deleteIcon.textContent = "❌";
-    deleteIcon.style.cursor = "pointer";
-    deleteIcon.style.marginLeft = "2px";
-    deleteIcon.style.display = "none";
-    deleteIcon.classList.add("editDir");
-    deleteIcon.classList.add("folder-delete-icon");
-    deleteIcon.onclick = async function () {
-        const sure = confirm("Are you sure you want to delete this folder and all its notes? " + item.text);
-        if (!sure) return;
-        await deleteDirectory(item.id);
-    };
+    // Right-click anywhere on the row opens the same menu at the cursor.
+    rowDiv.addEventListener("contextmenu", function (e) {
+        e.preventDefault();
+        openContextMenu(folderMenuItems(item, onAdd), { x: e.clientX, y: e.clientY });
+    });
 
     const countSpan = document.createElement("span");
     countSpan.textContent = " (0)";
@@ -248,10 +358,8 @@ function createFolderLi(item, hasChildren, onAdd) {
 
     rowDiv.appendChild(expandButton);
     rowDiv.appendChild(nameSpan);
-    rowDiv.appendChild(addIcon);
-    rowDiv.appendChild(editIcon);
-    rowDiv.appendChild(deleteIcon);
     rowDiv.appendChild(countSpan);
+    rowDiv.appendChild(menuBtn);
     li.appendChild(rowDiv);
 
     return li;
@@ -268,9 +376,6 @@ function makeOnAdd(parentId) {
         }
         // New folders are inserted at the top of the list
         const newLi = createFolderLi(newDir, false, makeOnAdd(newDir.id));
-        if (editModeActive) {
-            newLi.querySelectorAll(".editDir").forEach((el) => (el.style.display = "inline"));
-        }
         ul.prepend(newLi);
         // Expand the parent so the new folder is visible immediately
         ul.style.display = "block";
@@ -282,7 +387,6 @@ function makeOnAdd(parentId) {
         }
         if (rowDiv) rowDiv.classList.add("open");
         if (!directoryElementOpen.includes(parentId)) directoryElementOpen.push(parentId);
-        refreshDeleteIcon(parentLi);
         await messageToServiceWorker("syncAddFolder", newDir);
     };
 }
@@ -312,7 +416,6 @@ async function applyFolderBatch(folders) {
                     const chevron = oldParentLi.querySelector(".folder-chevron");
                     if (chevron) chevron.style.visibility = "hidden";
                 }
-                refreshDeleteIcon(oldParentLi);
             }
             return true; // consumed
         }
@@ -346,7 +449,6 @@ async function applyFolderBatch(folders) {
                     targetUl.prepend(existing);
                     const targetChevron = newParentLi.querySelector(".folder-chevron");
                     if (targetChevron) targetChevron.style.visibility = "visible";
-                    refreshDeleteIcon(newParentLi);
                 }
                 // Hide chevron on the old parent if it has no children left
                 if (currentParentLi) {
@@ -355,7 +457,6 @@ async function applyFolderBatch(folders) {
                         const sourceChevron = currentParentLi.querySelector(".folder-chevron");
                         if (sourceChevron) sourceChevron.style.visibility = "hidden";
                     }
-                    refreshDeleteIcon(currentParentLi);
                 }
             }
         } else {
@@ -379,7 +480,6 @@ async function applyFolderBatch(folders) {
                 const chevron = parentLi.querySelector(".folder-chevron");
                 if (chevron) chevron.style.visibility = "visible";
                 ul.appendChild(newLi);
-                refreshDeleteIcon(parentLi);
             }
         }
         return true; // consumed
@@ -488,7 +588,7 @@ async function applyNoteBatch(notes) {
 }
 
 async function addFolder(item) {
-    const newName = prompt("Enter name");
+    const newName = prompt("Folder name");
     // If the user entered a name, create the folder
     if (newName && newName.trim() !== "") {
         let newDir = {
@@ -728,14 +828,12 @@ function handleDrop(event) {
             }
             if (newRowDiv) newRowDiv.classList.add("open");
             if (!directoryElementOpen.includes(newParentId)) directoryElementOpen.push(newParentId);
-            refreshDeleteIcon(newParent);
             if (oldParentLi) {
                 const oldUl = oldParentLi.querySelector(":scope > ul");
                 if (oldUl && oldUl.children.length === 0) {
                     const oldChevron = oldParentLi.querySelector(".folder-chevron");
                     if (oldChevron) oldChevron.style.visibility = "hidden";
                 }
-                refreshDeleteIcon(oldParentLi);
             }
         }
 
@@ -958,32 +1056,40 @@ async function zappaDb() {
     await messageToServiceWorker("db_zappa_request");
 }
 
-function registerEvents() {
-    let editIcon = document.getElementById("showHideEdit");
-    editIcon.textContent = "⚙️";
-    editIcon.style.cursor = "pointer";
+// Create a top-level folder (parent: null) and insert it at the top of the list.
+async function createRootFolder() {
+    const newName = prompt("Folder name");
+    if (!newName || newName.trim() === "") return;
 
-    editIcon.onclick = function () {
-        editModeActive = !editModeActive;
-        let editDir = document.querySelectorAll(".editDir");
-        editDir.forEach(function (item) {
-            if (item.style.display === "none") {
-                item.style.display = "inline";
-            } else {
-                item.style.display = "none";
-            }
-        });
-        // Re-hide delete icon for folders that now have children
-        if (editModeActive) {
-            document.querySelectorAll(".folder-delete-icon").forEach((icon) => {
-                const li = icon.closest("li[data-id]");
-                if (li && li.querySelector(":scope > ul > li[data-id]")) {
-                    icon.style.display = "none";
-                }
-            });
-        }
+    const newDir = {
+        id: crypto.randomUUID(),
+        text: newName.trim(),
+        parent: null,
+        timestamp: transformDateToUnix(),
+        active: 1,
     };
+    try {
+        await jsstoreCon.insert({
+            into: "Folder",
+            values: [newDir],
+        });
+        // New root folder goes at the top of the list (no full rebuild)
+        const listaDiv = document.getElementById("lista");
+        let rootUl = listaDiv.querySelector("ul");
+        if (!rootUl) {
+            rootUl = document.createElement("ul");
+            listaDiv.appendChild(rootUl);
+        }
+        const newLi = createFolderLi(newDir, false, makeOnAdd(newDir.id));
+        rootUl.prepend(newLi);
 
+        await messageToServiceWorker("syncAddFolder", newDir);
+    } catch (error) {
+        console.error("Error inserting root folder:", error);
+    }
+}
+
+function registerEvents() {
     let searchIcon = document.getElementById("showSearchIcon");
     searchIcon.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i>';
     searchIcon.onclick = function () {
@@ -1041,48 +1147,17 @@ function registerEvents() {
         showChangePasswordModal();
     };
 
-    // Add root folder button
-    const addIcon = document.getElementById("firstAdd");
-    addIcon.textContent = "➕";
-    addIcon.style.cursor = "pointer";
-    addIcon.style.marginLeft = "2px";
-    addIcon.style.display = "none"; // Hidden until edit mode is toggled
-    addIcon.onclick = async function () {
-        const newName = prompt("Enter name");
-
-        if (newName && newName.trim() !== "") {
-            let newDir = {
-                id: crypto.randomUUID(),
-                text: newName.trim(),
-                parent: null,
-                timestamp: transformDateToUnix(),
-                active: 1,
-            };
-            try {
-                await jsstoreCon.insert({
-                    into: "Folder",
-                    values: [newDir],
-                });
-                // New root folder goes at the top of the list (no full rebuild)
-                const listaDiv = document.getElementById("lista");
-                let rootUl = listaDiv.querySelector("ul");
-                if (!rootUl) {
-                    rootUl = document.createElement("ul");
-                    listaDiv.appendChild(rootUl);
-                }
-                const newLi = createFolderLi(newDir, false, makeOnAdd(newDir.id));
-                if (editModeActive) {
-                    newLi.querySelectorAll(".editDir").forEach((el) => (el.style.display = "inline"));
-                }
-                rootUl.prepend(newLi);
-
-                await messageToServiceWorker("syncAddFolder", newDir);
-            } catch (error) {
-                console.error("Error inserting root folder:", error);
-            }
-        }
+    // Root "add folder" button in the sidebar header. Always visible and clearly
+    // actionable (its only job is creating a top-level folder), placed next to
+    // the "Folders" label so it reads as the way to add the first folder.
+    const rootAddBtn = document.getElementById("firstAdd");
+    rootAddBtn.className = "folder-add-btn";
+    rootAddBtn.innerHTML = '<i class="fa-solid fa-folder-plus"></i>';
+    rootAddBtn.setAttribute("title", "New folder");
+    rootAddBtn.onclick = function (e) {
+        e.stopPropagation();
+        createRootFolder();
     };
-    addIcon.classList.add("editDir");
 
     // Search panel
     const searchInput = document.getElementById("searchInput");
@@ -1670,7 +1745,6 @@ async function cleanListFolder() {
     listaDiv.innerHTML = "";
     pendingFolderSync = [];
     pendingNoteSync = [];
-    editModeActive = false;
 }
 
 async function messageToServiceWorker(type, data) {

@@ -1,4 +1,4 @@
-Jana 0.9.1
+Jana 0.10
 Just Another Note Application.
 ===========================
 
@@ -61,7 +61,7 @@ Default credentials: `admin` / `admin` — **change the password after first log
 TODO / Roadmap
 --------
 - [x] Admin section to manage users (create, disable, reset password)
-- [ ] Icon-based context menu for actions: new note, new folder, edit, delete
+- [x] Icon-based context menu for actions: new note, new folder, edit, delete
 - [ ] Favorites: mark notes/folders as favorites for quick access
 - [ ] WebSocket support for real-time note updates across devices
 
