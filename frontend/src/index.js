@@ -13,12 +13,6 @@ let pendingFolderSync = [];
 // Notes deferred because their folder wasn't in the DOM yet
 let pendingNoteSync = [];
 
-function refreshDeleteIcon() {
-    // Inline edit icons were removed: folder actions now live in the shared
-    // context menu. Kept as a no-op so the existing drag/drop and sync call
-    // sites don't need to change.
-}
-
 // ===== Shared folder context menu =====
 // A single menu node reused for every folder (and the sidebar header).
 let folderContextMenuEl = null;
@@ -268,7 +262,7 @@ function folderMenuItems(item, onAdd) {
             icon: "fa-solid fa-pen",
             label: "Edit folder",
             onClick: async () => {
-                const newName = prompt("Enter new name:", item.text);
+                const newName = prompt("Folder name: ", item.text);
                 if (newName && newName.trim() !== "") {
                     item.text = newName.trim();
                     const nameSpanEl = document.querySelector(`span[dirItemName="${item.id}"]`);
@@ -380,7 +374,6 @@ function makeOnAdd(parentId) {
         }
         if (rowDiv) rowDiv.classList.add("open");
         if (!directoryElementOpen.includes(parentId)) directoryElementOpen.push(parentId);
-        refreshDeleteIcon(parentLi);
         await messageToServiceWorker("syncAddFolder", newDir);
     };
 }
@@ -410,7 +403,6 @@ async function applyFolderBatch(folders) {
                     const chevron = oldParentLi.querySelector(".folder-chevron");
                     if (chevron) chevron.style.visibility = "hidden";
                 }
-                refreshDeleteIcon(oldParentLi);
             }
             return true; // consumed
         }
@@ -444,7 +436,6 @@ async function applyFolderBatch(folders) {
                     targetUl.prepend(existing);
                     const targetChevron = newParentLi.querySelector(".folder-chevron");
                     if (targetChevron) targetChevron.style.visibility = "visible";
-                    refreshDeleteIcon(newParentLi);
                 }
                 // Hide chevron on the old parent if it has no children left
                 if (currentParentLi) {
@@ -453,7 +444,6 @@ async function applyFolderBatch(folders) {
                         const sourceChevron = currentParentLi.querySelector(".folder-chevron");
                         if (sourceChevron) sourceChevron.style.visibility = "hidden";
                     }
-                    refreshDeleteIcon(currentParentLi);
                 }
             }
         } else {
@@ -477,7 +467,6 @@ async function applyFolderBatch(folders) {
                 const chevron = parentLi.querySelector(".folder-chevron");
                 if (chevron) chevron.style.visibility = "visible";
                 ul.appendChild(newLi);
-                refreshDeleteIcon(parentLi);
             }
         }
         return true; // consumed
@@ -586,7 +575,7 @@ async function applyNoteBatch(notes) {
 }
 
 async function addFolder(item) {
-    const newName = prompt("Enter name");
+    const newName = prompt("Folder name");
     // If the user entered a name, create the folder
     if (newName && newName.trim() !== "") {
         let newDir = {
@@ -826,14 +815,12 @@ function handleDrop(event) {
             }
             if (newRowDiv) newRowDiv.classList.add("open");
             if (!directoryElementOpen.includes(newParentId)) directoryElementOpen.push(newParentId);
-            refreshDeleteIcon(newParent);
             if (oldParentLi) {
                 const oldUl = oldParentLi.querySelector(":scope > ul");
                 if (oldUl && oldUl.children.length === 0) {
                     const oldChevron = oldParentLi.querySelector(".folder-chevron");
                     if (oldChevron) oldChevron.style.visibility = "hidden";
                 }
-                refreshDeleteIcon(oldParentLi);
             }
         }
 
@@ -1058,7 +1045,7 @@ async function zappaDb() {
 
 // Create a top-level folder (parent: null) and insert it at the top of the list.
 async function createRootFolder() {
-    const newName = prompt("Enter name");
+    const newName = prompt("Folder name");
     if (!newName || newName.trim() === "") return;
 
     const newDir = {
