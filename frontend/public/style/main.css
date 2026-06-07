@@ -152,6 +152,86 @@ li[data-id] {
     margin-left: auto;
 }
 
+/* Kebab trigger for the folder context menu — discreet, more visible on hover */
+.folder-menu-btn {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #cbd5e1;
+    opacity: 0.5;
+    cursor: pointer;
+    transition: opacity 0.12s, background 0.12s, color 0.12s;
+}
+.folder-row .folder-menu-btn { margin-left: 4px; }
+.folder-row:hover .folder-menu-btn { opacity: 1; color: var(--gray-mid); }
+.folder-menu-btn:hover {
+    opacity: 1;
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--accent);
+}
+/* Root "add folder" button in the sidebar header — clearly visible, next to the label */
+.folder-add-btn {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--gray-mid);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+}
+.folder-add-btn:hover {
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--accent);
+}
+
+/* Shared folder context menu */
+.folder-context-menu {
+    position: fixed;
+    z-index: 2000;
+    min-width: 190px;
+    padding: 4px;
+    background: #fff;
+    border: 1px solid var(--gray-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+.folder-context-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+.folder-context-item i {
+    width: 16px;
+    text-align: center;
+    color: var(--gray-mid);
+}
+.folder-context-item:hover { background: var(--accent-hover); }
+.folder-context-item.danger { color: #dc2626; }
+.folder-context-item.danger i { color: #dc2626; }
+.folder-context-item:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.folder-context-item:disabled:hover { background: transparent; }
+
 /* Note items */
 .noteItem {
     display: flex;
