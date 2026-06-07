@@ -16,6 +16,8 @@ let pendingNoteSync = [];
 // ===== Shared folder context menu =====
 // A single menu node reused for every folder (and the sidebar header).
 let folderContextMenuEl = null;
+// The element that opened the menu (e.g. a kebab button), used to support toggle-close.
+let folderContextMenuAnchor = null;
 
 function ensureFolderContextMenu() {
     if (folderContextMenuEl) return folderContextMenuEl;
@@ -30,6 +32,7 @@ function ensureFolderContextMenu() {
 
 function closeContextMenu() {
     if (folderContextMenuEl) folderContextMenuEl.style.display = "none";
+    folderContextMenuAnchor = null;
     document.removeEventListener("mousedown", onContextMenuOutside, true);
     document.removeEventListener("keydown", onContextMenuKey, true);
     window.removeEventListener("scroll", closeContextMenu, true);
@@ -37,7 +40,10 @@ function closeContextMenu() {
 }
 
 function onContextMenuOutside(event) {
-    if (folderContextMenuEl && !folderContextMenuEl.contains(event.target)) closeContextMenu();
+    if (!folderContextMenuEl || folderContextMenuEl.contains(event.target)) return;
+    // Don't close on a click on the opening anchor: let its own handler toggle the menu.
+    if (folderContextMenuAnchor && folderContextMenuAnchor.contains(event.target)) return;
+    closeContextMenu();
 }
 
 function onContextMenuKey(event) {
@@ -46,8 +52,10 @@ function onContextMenuKey(event) {
 
 // items: array of { icon, label, onClick, danger?, disabled? }
 // position: { x, y } in viewport coordinates
-function openContextMenu(items, position) {
+// anchor: optional element that opened the menu (enables toggle-close on re-click)
+function openContextMenu(items, position, anchor) {
     const menu = ensureFolderContextMenu();
+    folderContextMenuAnchor = anchor || null;
     menu.innerHTML = "";
     items.forEach((item) => {
         const btn = document.createElement("button");
@@ -326,8 +334,13 @@ function createFolderLi(item, hasChildren, onAdd) {
     menuBtn.setAttribute("title", "Folder actions");
     menuBtn.onclick = function (e) {
         e.stopPropagation();
+        // Toggle: a second click on the same kebab closes the open menu instead of reopening it.
+        if (folderContextMenuEl && folderContextMenuEl.style.display === "block" && folderContextMenuAnchor === menuBtn) {
+            closeContextMenu();
+            return;
+        }
         const r = menuBtn.getBoundingClientRect();
-        openContextMenu(folderMenuItems(item, onAdd), { x: r.left, y: r.bottom + 2 });
+        openContextMenu(folderMenuItems(item, onAdd), { x: r.left, y: r.bottom + 2 }, menuBtn);
     };
 
     // Right-click anywhere on the row opens the same menu at the cursor.
